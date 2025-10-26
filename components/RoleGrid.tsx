@@ -1,75 +1,75 @@
-
-// components/RoleGrid.tsx — shows all roles at once, selectable, indicates who has each role
+// components/RoleGrid.tsx
 import { ThemedText } from '@/components/themed-text';
 import { RoleName } from '@/models/role';
 import { rolesList } from '@/models/rolesList';
 import { useRoleStore } from '@/stores/roleStore';
 import { Image } from 'expo-image';
 import React from 'react';
-import { FlatList, Pressable, StyleSheet } from 'react-native';
+import { Pressable, ScrollView, StyleSheet } from 'react-native';
 
-interface RoleGridProps {
+export type RoleGridProps = {
   selectedRole?: RoleName;
   onSelect: (role?: RoleName) => void;
-}
+  containerHeight?: number; // controls how tall the grid area is
+};
 
-export default function RoleGrid({ selectedRole, onSelect }: RoleGridProps) {
-  const assigned = useRoleStore(s => s.assigned);
-
-  const renderItem = ({ item }: any) => {
-    const roleName: RoleName = item.title;
-    // Find if someone already has this role
-    const holder = Object.entries(assigned).find(([, rn]) => rn === roleName)?.[0];
-    const isSelected = selectedRole === roleName;
-
-    return (
-      <Pressable
-        onPress={() => onSelect(isSelected ? undefined : roleName)}
-        style={({ pressed }) => [
-          styles.card,
-          holder && styles.cardTaken,
-          isSelected && styles.cardSelected,
-          pressed && { opacity: 0.9 },
-        ]}
-      >
-        <Image source={item.picture} style={styles.avatar} contentFit="cover" />
-        <ThemedText type="defaultSemiBold" style={styles.roleTitle}>{roleName}</ThemedText>
-        {holder && (
-          <ThemedText style={styles.takenBadge}>Assigned</ThemedText>
-        )}
-      </Pressable>
-    );
-  };
+export default function RoleGrid({ selectedRole, onSelect, containerHeight = 240 }: RoleGridProps) {
+  const assigned = useRoleStore((s) => s.assigned);
 
   return (
-    <FlatList
-      data={rolesList}
-      keyExtractor={(r) => String(r.title)}
-      renderItem={renderItem}
-      numColumns={3}
-      columnWrapperStyle={{ gap: 10 }}
-      contentContainerStyle={{ gap: 10 }}
-      scrollEnabled={false}
-    />
+    <ScrollView
+      style={{ maxHeight: containerHeight }}
+      contentContainerStyle={styles.grid}
+      // This ScrollView is NOT nested inside another ScrollView if your screen uses a plain View
+      // If your screen has a ScrollView parent, leave it; this still works since it's a sibling layout (not nested vertical lists)
+    >
+      {rolesList.map((item) => {
+        const roleName = item.title;
+        const holder = Object.entries(assigned).find(([, rn]) => rn === roleName)?.[0];
+        const isSelected = selectedRole === roleName;
+
+        return (
+          <Pressable
+            key={String(roleName)}
+            onPress={() => onSelect(isSelected ? undefined : roleName)}
+            style={({ pressed }) => [
+              styles.card,
+              holder && styles.cardTaken,
+              isSelected && styles.cardSelected,
+              pressed && { opacity: 0.9 },
+            ]}
+          >
+            <Image source={item.picture} style={styles.avatar} contentFit="cover" />
+            <ThemedText type="defaultSemiBold" style={styles.roleTitle}>
+              {roleName}
+            </ThemedText>
+            {holder && <ThemedText style={styles.takenBadge}>Assigned</ThemedText>}
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+  },
   card: {
-    flex: 1,
-    minHeight: 118,
-    padding: 10,
-    borderRadius: 12,
+    width: '20%',            // 👈 5 per row
+    padding: 8,
+    marginBottom: 10,        // row spacing
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     backgroundColor: 'rgba(0,0,0,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
   },
-  cardTaken: {
-    opacity: 0.6,
-  },
+  cardTaken: { opacity: 0.6 },
   cardSelected: {
     borderColor: 'rgba(255,0,0,0.8)',
     shadowColor: '#000',
@@ -77,18 +77,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 10,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-  },
-  roleTitle: {
-    textAlign: 'center',
-  },
-  takenBadge: {
-    fontSize: 12,
-    opacity: 0.7,
-  }
+  avatar: { width: 40, height: 40, borderRadius: 8, marginBottom: 6 },
+  roleTitle: { textAlign: 'center', fontSize: 12 },
+  takenBadge: { fontSize: 11, opacity: 0.7, marginTop: 2 },
 });
-
-
