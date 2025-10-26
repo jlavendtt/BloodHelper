@@ -1,6 +1,6 @@
 // components/RoleGrid.tsx
 import { ThemedText } from '@/components/themed-text';
-import { RoleName } from '@/models/role';
+import { Affiliation, RoleName } from '@/models/role';
 import { rolesList } from '@/models/rolesList';
 import { useRoleStore } from '@/stores/roleStore';
 import { Image } from 'expo-image';
@@ -10,20 +10,25 @@ import { Pressable, ScrollView, StyleSheet } from 'react-native';
 export type RoleGridProps = {
   selectedRole?: RoleName;
   onSelect: (role?: RoleName) => void;
-  containerHeight?: number; // controls how tall the grid area is
+  containerHeight?: number;
+  affiliations?: Affiliation[]; // ⬅️ NEW: filter roles by affiliation(s)
 };
 
-export default function RoleGrid({ selectedRole, onSelect, containerHeight = 240 }: RoleGridProps) {
+export default function RoleGrid({
+  selectedRole,
+  onSelect,
+  containerHeight = 240,
+  affiliations,
+}: RoleGridProps) {
   const assigned = useRoleStore((s) => s.assigned);
 
+  const filtered = affiliations?.length
+    ? rolesList.filter(r => affiliations.includes(r.affiliation))
+    : rolesList;
+
   return (
-    <ScrollView
-      style={{ maxHeight: containerHeight }}
-      contentContainerStyle={styles.grid}
-      // This ScrollView is NOT nested inside another ScrollView if your screen uses a plain View
-      // If your screen has a ScrollView parent, leave it; this still works since it's a sibling layout (not nested vertical lists)
-    >
-      {rolesList.map((item) => {
+    <ScrollView style={{ maxHeight: containerHeight }} contentContainerStyle={styles.grid}>
+      {filtered.map((item) => {
         const roleName = item.title;
         const holder = Object.entries(assigned).find(([, rn]) => rn === roleName)?.[0];
         const isSelected = selectedRole === roleName;
@@ -59,9 +64,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   card: {
-    width: '20%',            // 👈 5 per row
+    width: '20%',            // ⬅️ 5 per row
     padding: 8,
-    marginBottom: 10,        // row spacing
+    marginBottom: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 10,
