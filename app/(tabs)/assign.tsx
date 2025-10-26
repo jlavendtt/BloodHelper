@@ -69,7 +69,6 @@ export default function AssignScreen() {
         </View>
 
         {/* Roles (NO SCROLL) — fixed-height area that shows *all* filtered roles */}
-        <ThemedText type="subtitle">Roles ({assignedCount} assigned)</ThemedText>
         <RoleGrid
           selectedRole={selectedRole}
           onSelect={onPickRole}
