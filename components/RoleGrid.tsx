@@ -47,11 +47,12 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingHorizontal: 0,
-    rowGap: 4,          // reduced vertical spacing
-    columnGap: 4,       // reduced horizontal spacing
+     rowGap: 4,          // reduced vertical spacing
+    columnGap: 4, 
     flexShrink: 0,
+    height: 222,
   },
   card: {
     width: '18.5%',     // fits 5 icons per row with minimal spacing
@@ -73,8 +74,8 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+    width: 40,                      // 👈 bigger PFP
+    height: 40,
+    borderRadius: 8,
   },
 });

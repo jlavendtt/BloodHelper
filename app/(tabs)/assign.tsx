@@ -1,13 +1,13 @@
 // app/assign.tsx
 import { Image } from 'expo-image';
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import PlayersBoard from '@/components/PlayersBoard';
 import RoleGrid from '@/components/RoleGrid';
 import { ThemedText } from '@/components/themed-text';
 
+import PlayersCircleTable from '@/components/PlayersCircleTable';
 import { Affiliation, RoleName } from '@/models/role';
 import { usePlayersStore } from '@/stores/playerStore';
 import { useRoleStore } from '@/stores/roleStore';
@@ -36,17 +36,14 @@ export default function AssignScreen() {
     setSelectedRole(undefined);
   };
 
-  const assignedCount = useMemo(
-    () => Object.values(assigned).filter(Boolean).length,
-    [assigned]
-  );
+  
 
   const currentAffiliations = FILTER_TO_AFFILIATIONS[filter];
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 }}>
-        {/* Filter bar (pinned, non-scroll) */}
+        {/* Filter bar */}
         <View style={styles.filterRow}>
           <FilterBtn
             image={require('@/assets/affiliation/villager.png')}
@@ -68,23 +65,21 @@ export default function AssignScreen() {
           />
         </View>
 
-        {/* Roles (NO SCROLL) — fixed-height area that shows *all* filtered roles */}
+        {/* Role icons (no text/badges, no scroll, 5 per row) */}
         <RoleGrid
           selectedRole={selectedRole}
           onSelect={onPickRole}
           affiliations={currentAffiliations}
-          // no scroll; RoleGrid is a plain View
         />
 
-        {/* Players below — this can scroll independently if it needs to */}
-        <ThemedText type="subtitle" style={{ marginTop: 8 }}>Players</ThemedText>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
-          <PlayersBoard
-            players={players}
-            onPressPlayer={handleAssignToPlayer}
-            highlightWhenReady={!!selectedRole}
-          />
-        </ScrollView>
+        {/* Table at the bottom */}
+        <ThemedText type="subtitle" style={{ marginTop: 10 }}>Players</ThemedText>
+        <PlayersCircleTable
+          players={players}
+          onPressPlayer={handleAssignToPlayer}
+          radius={130}                 // optional; or omit to auto-size from container
+          style={{ marginTop: 10 }}    // optional
+        />
       </View>
     </SafeAreaView>
   );
