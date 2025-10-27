@@ -74,12 +74,12 @@ export default function AssignScreen() {
 
         {/* Table at the bottom */}
         <ThemedText type="subtitle" style={{ marginTop: 10 }}>Players</ThemedText>
-        <PlayersCircleTable
-          players={players}
-          onPressPlayer={handleAssignToPlayer}
-          radius={130}                 // optional; or omit to auto-size from container
-          style={{ marginTop: 10 }}    // optional
-        />
+       <PlayersCircleTable
+  players={players}
+  selectedRole={selectedRole}                 // <-- pass it
+  onPressPlayer={handleAssignToPlayer}       // assigns via store
+  radius={130}
+/>
       </View>
     </SafeAreaView>
   );
