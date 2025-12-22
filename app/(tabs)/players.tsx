@@ -10,7 +10,6 @@ export default function PlayersTab() {
     <SafeAreaView style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <View style={{ gap: 12 }}>
-          <ThemedText type="title">Players</ThemedText>
           <ThemedText style={{ opacity: 0.8 }}>
             Add, remove, or rename players. Changes are saved automatically.
           </ThemedText>

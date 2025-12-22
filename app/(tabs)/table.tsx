@@ -1,9 +1,27 @@
-import CircleOfNames from '@/components/ui/circle-of-names';
+// app/(tabs)/TableTab.tsx
+import PlayersCircleTable from '@/components/PlayersCircleTable';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { usePlayersStore } from '@/stores/playerStore';
+import React from 'react';
 
-
-export default function TableScreen() {
+export default function TableTab() {
+  const { players } = usePlayersStore();
 
   return (
-    <CircleOfNames names={['Jesse','Justin','Julia','Peter','Thomassss','Sungho','Jillian','Kendal','Andy']} radius={130} />
+    <ThemedView style={{ flex: 1, padding: 12 }}>
+      <ThemedText type="subtitle">
+        Role Table
+      </ThemedText>
+
+      <PlayersCircleTable
+        players={players}
+        onPressPlayer={(id) => {
+          console.log('Pressed player for role assignment:', id);
+        }}
+        showRing
+        radius={150}
+      />
+    </ThemedView>
   );
 }
