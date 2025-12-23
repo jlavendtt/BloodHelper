@@ -12,7 +12,8 @@
       "bundleIdentifier": "com.jesse.BloodHelper",
       "supportsTablet": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSContactsUsageDescription": "Allow access to import contacts into the app.",
       }
     },
     "android": {
@@ -22,6 +23,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "permissions": ["READ_CONTACTS"],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },

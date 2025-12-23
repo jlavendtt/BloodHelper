@@ -157,6 +157,8 @@ export default function PlayersCircleTable({
         const angle = index * angleStep - Math.PI / 2; // start at top
 
         const x = r * Math.cos(angle);
+        console.log(p)
+        console.log(x)
         const y = r * Math.sin(angle);
 
         const roleName = assigned[p.id] as RoleName | undefined;
