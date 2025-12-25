@@ -16,8 +16,11 @@ import {
   View,
 } from 'react-native';
 
+import { Affiliation } from '@/models/role';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { Alert, Linking, Platform } from 'react-native';
+
 
 export default function PlayersEditor() {
   const {
@@ -63,6 +66,74 @@ export default function PlayersEditor() {
     if (removeMode) removeFromHistory(n);
     else addFromHistory(n);
   };
+
+  const sendRoleText = async (playerId: string) => {
+  const p = players.find(x => x.id === playerId);
+  if (!p) return;
+
+  const phone = (p.phone ?? '').trim();
+  if (!phone) {
+    Alert.alert('No phone number', `Add a phone number for ${p.name} first.`);
+    return;
+  }
+
+  const roleName = assigned[playerId];
+  const role = roleName ? rolesList.find(r => r.title === roleName) : undefined;
+
+  const roleText = roleName ? String(roleName) : 'Unknown role';
+
+  // Build team intel based on affiliations
+  const playersWithRoles = players
+    .map(pl => {
+      const rn = assigned[pl.id];
+      const r = rn ? rolesList.find(x => x.title === rn) : undefined;
+      return { player: pl, roleName: rn, role: r };
+    })
+    .filter(x => x.role); // only those with known role objects
+
+  const demons = playersWithRoles.filter(x => x.role?.affiliation === Affiliation.Demon);
+  const minions = playersWithRoles.filter(x => x.role?.affiliation === Affiliation.Minion);
+
+  const demonNames = demons.map(x => x.player.name);
+  const minionNames = minions.map(x => x.player.name);
+
+  const isDemon = role?.affiliation === Affiliation.Demon;
+  const isMinion = role?.affiliation === Affiliation.Minion;
+
+  const lines: string[] = [];
+  lines.push(`Your role is: ${roleText}`);
+
+  if (isDemon) {
+    if (minionNames.length) {
+      lines.push(`Your minion(s): ${minionNames.join(', ')}`);
+    }
+  }
+
+  if (isMinion) {
+    if (demonNames.length) {
+      lines.push(`Your demon: ${demonNames.join(', ')}`);
+    }
+    const otherMinions = minionNames.filter(n => n !== p.name);
+    if (otherMinions.length) {
+      lines.push(`Fellow minion(s): ${otherMinions.join(', ')}`);
+    }
+  }
+
+  const message = lines.join('\n');
+
+  const sep = Platform.OS === 'ios' ? '&' : '?';
+  const url = `sms:${encodeURIComponent(phone)}${sep}body=${encodeURIComponent(message)}`;
+
+  const canOpen = await Linking.canOpenURL(url);
+  if (!canOpen) {
+    Alert.alert('Cannot open Messages', 'Your device cannot open the SMS composer.');
+    return;
+  }
+
+  await Linking.openURL(url);
+};
+
+
 
   return (
     <ThemedView style={{ gap: 12 }}>
@@ -125,9 +196,8 @@ export default function PlayersEditor() {
               <View style={styles.actions}>
                 <Pressable
                   style={styles.iconBtn}
-                  onPress={() => {
-                    // TODO: send/text later
-                  }}
+                  onPress={() => sendRoleText(p.id)}
+
                 >
                   <Ionicons name="send" size={18} color="#fff" />
                 </Pressable>
