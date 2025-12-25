@@ -269,68 +269,121 @@ export default function PlayersEditor() {
 
       {/* Contacts Modal */}
       <Modal
-        visible={contactImporter.open}
-        transparent
-        animationType="fade"
-        onRequestClose={contactImporter.closePicker}
-      >
-        <View style={styles.modalBackdropOffset}>
-          <View style={styles.modalCard}>
-            <ThemedText type="subtitle">Import from Contacts</ThemedText>
+  visible={contactImporter.open}
+  transparent
+  animationType="fade"
+  onRequestClose={contactImporter.closePicker}
+>
+  <View style={styles.modalBackdropOffset}>
+    <View style={styles.modalCard}>
+      <ThemedText type="subtitle">Import from Contacts</ThemedText>
 
-            <TextInput
-              value={contactImporter.query}
-              onChangeText={contactImporter.setQuery}
-              placeholder="Search name or number"
-              placeholderTextColor="#999"
-              style={styles.modalInput}
-            />
+      {/* Limited access notice + actions */}
+      {contactImporter.access === 'limited' && (
+        <View style={{ gap: 8 }}>
+          <ThemedText style={{ opacity: 0.85 }}>
+            Contacts access is set to selected contacts only. Add more contacts or allow full access.
+          </ThemedText>
 
-            <View style={{ maxHeight: 360 }}>
-              <FlatList
-                data={contactImporter.filtered}
-                keyboardShouldPersistTaps="handled"
-                keyExtractor={(_, i) => String(i)}
-                renderItem={({ item }) => {
-                  const displayName =
-                    (item.name ??
-                      `${item.firstName ?? ''} ${item.lastName ?? ''}`.trim()).trim() ||
-                    'Unnamed';
+          <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+            <Pressable
+              style={[styles.btn, styles.neutral]}
+              onPress={contactImporter.selectMoreContacts}
+            >
+              <ThemedText>
+                {contactImporter.loading ? 'Loading…' : 'Select more'}
+              </ThemedText>
+            </Pressable>
 
-                  const displayNumber =
-                    item.phoneNumbers?.[0]?.number?.trim() ?? 'No number';
-
-                  return (
-                    <Pressable
-                      onPress={() => contactImporter.pickContact(item)}
-                      style={styles.contactRow}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <ThemedText numberOfLines={1} style={{ fontWeight: '600' }}>
-                          {displayName}
-                        </ThemedText>
-                        <ThemedText numberOfLines={1} style={{ opacity: 0.85 }}>
-                          {displayNumber}
-                        </ThemedText>
-                      </View>
-                      <ThemedText>Add</ThemedText>
-                    </Pressable>
-                  );
-                }}
-              />
-            </View>
-
-            <View style={styles.modalActions}>
-              <Pressable
-                style={[styles.btn, styles.neutral]}
-                onPress={contactImporter.closePicker}
-              >
-                <ThemedText>Close</ThemedText>
-              </Pressable>
-            </View>
+            <Pressable
+              style={[styles.btn, styles.neutral]}
+              onPress={contactImporter.openSettings}
+            >
+              <ThemedText>Open Settings</ThemedText>
+            </Pressable>
           </View>
         </View>
-      </Modal>
+      )}
+
+      <TextInput
+        value={contactImporter.query}
+        onChangeText={contactImporter.setQuery}
+        placeholder="Search name or number"
+        placeholderTextColor="#999"
+        style={styles.modalInput}
+      />
+
+      <View style={{ maxHeight: 360 }}>
+        <FlatList<import('expo-contacts').Contact>
+          data={contactImporter.filtered}
+          keyboardShouldPersistTaps="handled"
+          keyExtractor={(item, index) => {
+            const name =
+              (item.name ??
+                `${item.firstName ?? ''} ${item.lastName ?? ''}`.trim()).trim() ||
+              'Unnamed';
+            const phone = item.phoneNumbers?.[0]?.number?.trim() ?? '';
+            return `${name}__${phone}__${index}`;
+          }}
+          renderItem={({ item }) => {
+            const displayName =
+              (item.name ??
+                `${item.firstName ?? ''} ${item.lastName ?? ''}`.trim()).trim() ||
+              'Unnamed';
+
+            const displayNumber =
+              item.phoneNumbers?.[0]?.number?.trim() ?? 'No number';
+
+            return (
+              <Pressable
+                onPress={() => contactImporter.pickContact(item)}
+                style={styles.contactRow}
+              >
+                <View style={{ flex: 1 }}>
+                  <ThemedText numberOfLines={1} style={{ fontWeight: '600' }}>
+                    {displayName}
+                  </ThemedText>
+                  <ThemedText numberOfLines={1} style={{ opacity: 0.85 }}>
+                    {displayNumber}
+                  </ThemedText>
+                </View>
+                <ThemedText style={{ opacity: 0.8 }}>Add</ThemedText>
+              </Pressable>
+            );
+          }}
+          ListEmptyComponent={
+            <ThemedText style={{ opacity: 0.7, paddingVertical: 10 }}>
+              {contactImporter.loading ? 'Loading…' : 'No contacts found.'}
+            </ThemedText>
+          }
+        />
+      </View>
+
+      <View style={styles.modalActions}>
+        <Pressable
+          style={[styles.btn, styles.neutral]}
+          onPress={contactImporter.closePicker}
+        >
+          <ThemedText>Close</ThemedText>
+        </Pressable>
+
+        <Pressable
+          style={[styles.btn, styles.neutral]}
+          onPress={contactImporter.openPicker}
+        >
+          <ThemedText>{contactImporter.loading ? 'Loading…' : 'Open again'}</ThemedText>
+        </Pressable>
+
+        <Pressable
+          style={[styles.btn, styles.neutral]}
+          onPress={contactImporter.refresh}
+        >
+          <ThemedText>{contactImporter.loading ? 'Loading…' : 'Refresh'}</ThemedText>
+        </Pressable>
+      </View>
+    </View>
+  </View>
+</Modal>
     </ThemedView>
   );
 }
