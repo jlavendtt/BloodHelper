@@ -56,7 +56,6 @@ export default function HighlighterTab() {
 
       {/* Middle: highlighter table */}
       <View style={{ gap: 8 }}>
-        <ThemedText type="subtitle">Highlight Players</ThemedText>
         <PlayersCircleHighlighter
           players={players}
           onHighlightsChange={(ids) => {

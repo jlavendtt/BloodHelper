@@ -164,7 +164,10 @@ export default function PlayersEditor() {
       </View>
 
       {/* In Game */}
-      <ThemedText type="subtitle">In Game</ThemedText>
+      <ThemedText type="subtitle">
+  In Game ({players.length})
+</ThemedText>
+
       <View style={{ gap: 8 }}>
         {players.map((p) => {
           const roleName = assigned[p.id];
