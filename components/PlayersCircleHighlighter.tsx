@@ -2,13 +2,13 @@
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    LayoutChangeEvent,
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-    ViewStyle,
+  LayoutChangeEvent,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
 } from 'react-native';
 
 export type Player = { id: string; name: string };

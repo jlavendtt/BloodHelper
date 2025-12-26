@@ -17,10 +17,46 @@ import { useRoleStore } from '@/stores/roleStore';
 
 export type Player = { id: string; name: string };
 
+type PlayerPressCtx = {
+  player: Player;
+  index: number;
+  mode: 'table' | 'highlight';
+  selectedRole?: RoleName;
+
+  // current order / selection (swap mode)
+  order: Player[];
+  selectedIdx: number | null;
+
+  // highlight state (highlight mode)
+  highlighted: Set<string>;
+};
+
 type Props = {
   players: Player[];
-  onPressPlayer: (playerId: string) => void;   // called to assign currently selected role
+
+  /**
+   * ✅ Best approach:
+   * - keep ONE component
+   * - default behavior is your existing "table" behavior
+   * - if mode="highlight", it behaves like the highlighter
+   */
+  mode?: 'table' | 'highlight';
+
+  /**
+   * Optional override callback. If provided, it runs FIRST.
+   * Return true to stop built-in behavior.
+   */
+  onPlayerPress?: (ctx: PlayerPressCtx) => boolean | void;
+
+  // --- table behavior (assign) ---
   selectedRole?: RoleName;
+  onAssignRole?: (playerId: string) => void; // called when selectedRole exists and user taps a player
+
+  // --- highlight behavior ---
+  initialHighlightedIds?: string[];
+  onHighlightsChange?: (ids: string[]) => void;
+
+  // --- layout / misc ---
   radius?: number;
   style?: ViewStyle;
   showRing?: boolean;
@@ -29,8 +65,15 @@ type Props = {
 
 export default function PlayersCircleTable({
   players,
-  onPressPlayer,
+  mode = 'table',
+  onPlayerPress,
+
   selectedRole,
+  onAssignRole,
+
+  initialHighlightedIds = [],
+  onHighlightsChange,
+
   radius,
   style,
   showRing = true,
@@ -45,19 +88,21 @@ export default function PlayersCircleTable({
     const curIds = order.map(p => p.id).join('|');
     const nextIds = players.map(p => p.id).join('|');
     if (curIds !== nextIds) setOrder(players);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players]);
 
-  // chosen for swap
+  // chosen for swap (table mode)
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
-  // double-tap detection
+  // double-tap detection (table mode)
   const [lastTapAt, setLastTapAt] = useState(0);
   const [lastTapId, setLastTapId] = useState<string | null>(null);
   const DOUBLE_TAP_MS = 300;
 
+  // role store (table mode)
   const assigned = useRoleStore((s) => s.assigned);
   const resetAssignments = useRoleStore((s) => s.resetAssignments);
-  const assignRole = useRoleStore((s) => s.assignRole);      // used to clear
+  const assignRole = useRoleStore((s) => s.assignRole);      // used to clear if unassignRole isn't present
   const unassignRole = useRoleStore((s) => s.unassignRole);  // if you have it
 
   // Role picture lookup
@@ -66,6 +111,19 @@ export default function PlayersCircleTable({
     rolesList.forEach((r) => m.set(r.title, r.picture));
     return m;
   }, []);
+
+  // highlight state
+  const [highlighted, setHighlighted] = useState<Set<string>>(
+    () => new Set(initialHighlightedIds),
+  );
+
+  useEffect(() => {
+    setHighlighted(new Set(initialHighlightedIds));
+  }, [initialHighlightedIds.join('|')]);
+
+  const emitHighlights = (set: Set<string>) => {
+    onHighlightsChange?.(order.map(p => p.id).filter(id => set.has(id)));
+  };
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -76,32 +134,72 @@ export default function PlayersCircleTable({
 
   const angleStep = order.length > 0 ? (2 * Math.PI) / order.length : 0;
 
-  // Slightly larger radius so the circle is bigger and more centered
   const r = useMemo(() => {
     if (radius) return radius;
     const minSide = Math.min(container.width, container.height);
-    // was: Math.max(60, minSide / 2 - 50)
     return Math.max(80, Math.floor(minSide / 2) - 30);
   }, [radius, container]);
 
   const centerX = container.width / 2;
   const centerY = container.height / 2;
 
-  // center undo modal
-  const handleConfirmReset = () => {
+  // center undo modal confirm
+  const handleConfirmCenterAction = () => {
     setShowConfirm(false);
+
+    if (mode === 'highlight') {
+      const next = new Set<string>();
+      setHighlighted(next);
+      emitHighlights(next);
+      return;
+    }
+
     resetAssignments();
   };
 
-  // tap handler for each player chip
+  const toggleHighlight = (playerId: string) => {
+    const next = new Set(highlighted);
+    if (next.has(playerId)) next.delete(playerId);
+    else next.add(playerId);
+    setHighlighted(next);
+    emitHighlights(next);
+  };
+
+  // main tap handler for each player chip
   const handlePressPlayer = (idx: number) => {
     const player = order[idx];
+    console.log(selectedRole)
+
+
+    // Optional override: if it returns true, skip built-in behavior
+    const stop = onPlayerPress?.({
+      player,
+      index: idx,
+      mode,
+      selectedRole,
+      order,
+      selectedIdx,
+      highlighted,
+    });
+    if (stop === true) {
+      console.log('stop was true')
+      return;
+    }
+
+    // HIGHLIGHT MODE: toggle
+    if (mode === 'highlight') {
+      toggleHighlight(player.id);
+      return;
+    }
+
+    // TABLE MODE: your original behavior (double-tap clear, assign, swap)
     const now = Date.now();
 
     // 1) Double-tap on same player → clear role
     if (lastTapId === player.id && now - lastTapAt < DOUBLE_TAP_MS) {
       if (unassignRole) unassignRole(player.id);
       else assignRole(player.id, undefined as any);
+
       setLastTapId(null);
       setSelectedIdx(null);
       return;
@@ -111,7 +209,8 @@ export default function PlayersCircleTable({
 
     // 2) If a role is selected → assign immediately (no swap)
     if (selectedRole) {
-      onPressPlayer(player.id);   // parent uses selectedRole to assign
+      console.log('yes there was a selected role')
+      onAssignRole?.(player.id);
       setSelectedIdx(null);
       return;
     }
@@ -155,15 +254,14 @@ export default function PlayersCircleTable({
       {/* Players around the ring */}
       {order.map((p, index) => {
         const angle = index * angleStep - Math.PI / 2; // start at top
-
         const x = r * Math.cos(angle);
-        console.log(p)
-        console.log(x)
         const y = r * Math.sin(angle);
 
-        const roleName = assigned[p.id] as RoleName | undefined;
+        const roleName = mode === 'table' ? (assigned[p.id] as RoleName | undefined) : undefined;
         const rolePic = roleName ? rolePicMap.get(roleName) : undefined;
-        const isSelected = selectedIdx === index;
+
+        const isSwapSelected = mode === 'table' && selectedIdx === index;
+        const isHighlighted = mode === 'highlight' && highlighted.has(p.id);
 
         return (
           <Pressable
@@ -175,23 +273,33 @@ export default function PlayersCircleTable({
                 left: centerX + x - ITEM_W / 2,
                 top: centerY + y - ITEM_H / 2,
                 opacity: pressed ? 0.85 : 1,
-                borderColor: isSelected ? 'rgba(255,0,0,0.9)' : 'rgba(255,255,255,0.15)',
-                shadowOpacity: isSelected ? 0.45 : 0.25,
+
+                borderColor: mode === 'highlight'
+                  ? (isHighlighted ? 'rgba(255,0,0,0.9)' : 'rgba(255,255,255,0.15)')
+                  : (isSwapSelected ? 'rgba(255,0,0,0.9)' : 'rgba(255,255,255,0.15)'),
+
+                shadowOpacity: mode === 'highlight'
+                  ? (isHighlighted ? 0.45 : 0.25)
+                  : (isSwapSelected ? 0.45 : 0.25),
+
+                backgroundColor: mode === 'highlight'
+                  ? (isHighlighted ? 'rgba(158,0,0,0.25)' : 'rgba(0,0,0,0.25)')
+                  : 'rgba(0,0,0,0.25)',
               },
             ]}
           >
-            <Text
-              style={styles.name}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
+            <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
               {p.name}
             </Text>
-            {rolePic ? (
-              <Image source={rolePic} style={styles.icon} contentFit="cover" />
-            ) : (
-              <View style={styles.placeholder} />
-            )}
+
+            {/* Icons only in table mode */}
+            {mode === 'table' ? (
+              rolePic ? (
+                <Image source={rolePic} style={styles.icon} contentFit="cover" />
+              ) : (
+                <View style={styles.placeholder} />
+              )
+            ) : null}
           </Pressable>
         );
       })}
@@ -207,7 +315,7 @@ export default function PlayersCircleTable({
           },
         ]}
         accessibilityRole="button"
-        accessibilityLabel="Reset all roles"
+        accessibilityLabel={mode === 'highlight' ? 'Clear highlights' : 'Reset all roles'}
       >
         <Image
           source={require('@/assets/meta/undo.png')}
@@ -216,7 +324,7 @@ export default function PlayersCircleTable({
         />
       </Pressable>
 
-      {/* Confirm reset modal */}
+      {/* Confirm modal */}
       <Modal
         visible={showConfirm}
         animationType="fade"
@@ -225,9 +333,13 @@ export default function PlayersCircleTable({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Reset all roles?</Text>
+            <Text style={styles.modalTitle}>
+              {mode === 'highlight' ? 'Clear all highlights?' : 'Reset all roles?'}
+            </Text>
             <Text style={styles.modalBody}>
-              This will unassign every player's role. You can’t undo this action.
+              {mode === 'highlight'
+                ? 'This will unhighlight every player.'
+                : "This will unassign every player's role. You can’t undo this action."}
             </Text>
 
             <View style={styles.modalActions}>
@@ -239,7 +351,7 @@ export default function PlayersCircleTable({
               </Pressable>
               <Pressable
                 style={[styles.mBtn, styles.mAccept]}
-                onPress={handleConfirmReset}
+                onPress={handleConfirmCenterAction}
               >
                 <Text style={[styles.mText, styles.mTextStrong]}>Accept</Text>
               </Pressable>
@@ -251,27 +363,25 @@ export default function PlayersCircleTable({
   );
 }
 
-// Slightly narrower width so more chips fit around the circle
-const ITEM_W = 80;   // was 132
+// chip sizing
+const ITEM_W = 80;
 const ITEM_H = 44;
 const CENTER_BTN = 56;
 
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-  
-    height: 600,      
-    position: 'fixed', /* Stays at top even when scrolling */
-    top: -120,
-    left: 0,   // was 320 → bigger table, better vertical centering
+    height: 600,
+    top: -100,
 
+    // RN doesn't support 'fixed' — use relative/absolute
+    position: 'relative',
   },
   ring: {
-
+    position: 'absolute',
     borderRadius: 9999,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    justifyContent: 'flex-start'
   },
   item: {
     position: 'absolute',
@@ -293,6 +403,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     flex: 1,
     paddingRight: 0,
+
+    // helps avoid vertical clipping in pills
+    lineHeight: 18,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    paddingVertical: 2,
   },
   icon: {
     width: 24,
@@ -365,7 +481,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
   },
   mCancel: { backgroundColor: 'rgba(255,255,255,0.06)' },
-  mAccept: { backgroundColor: 'rgba(158,0,0,0.35)', borderColor: 'rgba(255,0,0,0.5)' },
+  mAccept: {
+    backgroundColor: 'rgba(158,0,0,0.35)',
+    borderColor: 'rgba(255,0,0,0.5)',
+  },
   mText: { color: '#fff', fontSize: 14 },
   mTextStrong: { fontWeight: '700' },
 });

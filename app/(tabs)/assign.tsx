@@ -48,6 +48,7 @@ export default function AssignScreen() {
   const onPickRole = (role?: RoleName) => setSelectedRole(role);
 
   const handleAssignToPlayer = (playerId: string) => {
+    console.log('got here')
     if (!selectedRole) return;
     assignRole(playerId, selectedRole);
     setSelectedRole(undefined);
@@ -103,7 +104,7 @@ export default function AssignScreen() {
         <PlayersCircleTable
           players={players}
           selectedRole={selectedRole}
-          onPressPlayer={handleAssignToPlayer}
+          onAssignRole = {handleAssignToPlayer}
           radius={150}
         />
       </View>
