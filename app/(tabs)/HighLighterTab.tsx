@@ -2,84 +2,165 @@
 import PlayersCircleTable from '@/components/PlayersCircleTable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import PromptsCarousel from '@/components/ui/PromptsCarousel';
+import { RoleName } from '@/models/role';
+import { rolesList } from '@/models/rolesList';
 import { usePlayersStore } from '@/stores/playerStore';
-import React, { useMemo, useState } from 'react';
+import { useRoleStore } from '@/stores/roleStore';
+import { Image } from 'expo-image';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-
-const FIRST_PROMPTS = [
-  'Who will you kill',
-  'These are your minions,',
-  'These is your demon,',
-  'Who will you poison',
-  'Here is your grimoire',
-];
-
-const OTHER_PROMPTS = [
-  'Choose someone to poison',
-  'Choose someone to save',
-  'Heres grimoire',
-  'Choose someone to kill',
-  'Ravenkeeper',
-  'Here is the token of the person who died today',
-  'Empath',
-  'Choose two players to fortune tell',
-  'Butler choose a player',
-];
 
 type Mode = 'first' | 'other';
 
+const FIRST_NIGHT_ROLES: RoleName[] = [
+  RoleName.Poisoner,
+  RoleName.Spy,
+  RoleName.Washerwoman,
+  RoleName.Librarian,
+  RoleName.Investigator,
+  RoleName.Chef,
+  RoleName.Empath,
+  RoleName.FortuneTeller,
+  RoleName.Butler,
+];
+
+const OTHER_NIGHTS_ROLES: RoleName[] = [
+  RoleName.Poisoner,
+  RoleName.Monk,
+  RoleName.Spy,
+  RoleName.Imp,
+  RoleName.Ravenkeeper,
+  RoleName.Undertaker,
+  RoleName.Empath,
+  RoleName.FortuneTeller,
+  RoleName.Butler,
+];
+
 export default function HighlighterTab() {
   const { players } = usePlayersStore();
-  const [mode, setMode] = useState<Mode>('first');
+  const assigned = useRoleStore((s) => s.assigned) as Record<string, RoleName | undefined>;
 
-  const prompts = useMemo(
-    () => (mode === 'first' ? FIRST_PROMPTS : OTHER_PROMPTS),
+  const [mode, setMode] = useState<Mode>('first');
+  const [selectedRole, setSelectedRole] = useState<RoleName | null>(null);
+
+  const roleOrder = useMemo(
+    () => (mode === 'first' ? FIRST_NIGHT_ROLES : OTHER_NIGHTS_ROLES),
     [mode]
+  );
+
+  const roleByName = useMemo(() => {
+    const map = new Map<RoleName, (typeof rolesList)[number]>();
+    for (const r of rolesList) map.set(r.title, r);
+    return map;
+  }, []);
+
+  const playerIdForRole = useMemo(() => {
+    const map = new Map<RoleName, string>();
+    for (const [playerId, role] of Object.entries(assigned ?? {})) {
+      if (role) map.set(role, playerId);
+    }
+    return map;
+  }, [assigned]);
+
+  const rolesInThisMode = useMemo(
+    () =>
+      roleOrder
+        .map((r) => roleByName.get(r))
+        .filter(Boolean) as (typeof rolesList)[number][],
+    [roleOrder, roleByName]
+  );
+
+  const firstClickableRole = useMemo(() => {
+    return rolesInThisMode.find((r) => playerIdForRole.get(r.title))?.title ?? null;
+  }, [rolesInThisMode, playerIdForRole]);
+
+  useEffect(() => {
+    setSelectedRole(firstClickableRole);
+  }, [mode, firstClickableRole]);
+
+  useEffect(() => {
+    if (selectedRole && !playerIdForRole.get(selectedRole)) {
+      setSelectedRole(firstClickableRole);
+    }
+  }, [selectedRole, playerIdForRole, firstClickableRole]);
+
+  const selectedRoleObj = selectedRole ? roleByName.get(selectedRole) : undefined;
+  const selectedPrompt =
+    selectedRoleObj?.prompt?.trim() || 'No prompt.';
+  const focusPlayerId = selectedRole
+    ? playerIdForRole.get(selectedRole)
+    : undefined;
+
+  // split into two rows
+  const mid = Math.ceil(rolesInThisMode.length / 2);
+  const row1 = rolesInThisMode.slice(0, mid);
+  const row2 = rolesInThisMode.slice(mid);
+
+  const renderRow = (row: typeof rolesInThisMode) => (
+    <View style={styles.roleRow}>
+      {row.map((r) => {
+        const isSelected = r.title === selectedRole;
+        const hasPlayer = Boolean(playerIdForRole.get(r.title));
+
+        return (
+          <Pressable
+            key={String(r.title)}
+            disabled={!hasPlayer}
+            onPress={() => hasPlayer && setSelectedRole(r.title)}
+            style={[
+              styles.roleChip,
+              isSelected && styles.roleChipOn,
+              !hasPlayer && styles.roleChipDisabled,
+            ]}
+          >
+            <Image source={r.picture} style={styles.roleIcon} contentFit="contain" />
+          </Pressable>
+        );
+      })}
+    </View>
   );
 
   return (
     <ThemedView style={styles.screen}>
-      {/* Top: prompts */}
-      <View style={{ gap: 8 }}>
-        <ThemedText type="subtitle">Story Prompts</ThemedText>
-        {/* Key forces the carousel to reset to index 0 when list changes */}
-        <PromptsCarousel
-          key={mode}
-          prompts={prompts}
-          onIndexChange={(idx) => {
-            // optional: react to prompt index changes
-            // console.log('Prompt index:', idx, 'mode:', mode);
-          }}
+      {/* Top: roles (2 rows) */}
+      <View style={styles.top}>
+        <ThemedText type="subtitle">
+          {mode === 'first' ? 'First Night Roles' : 'Other Nights Roles'}
+        </ThemedText>
+
+        {renderRow(row1)}
+        {row2.length > 0 && renderRow(row2)}
+
+        {/* Prompt row */}
+        <View style={styles.promptBox}>
+          <ThemedText type="defaultSemiBold">
+            {selectedRoleObj?.title ?? 'No assigned role'} {selectedRoleObj ? selectedPrompt : ''}
+          </ThemedText>
+        </View>
+      </View>
+
+      {/* Middle */}
+      <View style={styles.middle}>
+        <PlayersCircleTable
+          players={players}
+          mode="highlight"
+          radius={150}
+          focusPlayerId={focusPlayerId}
         />
       </View>
 
-      {/* Middle: highlighter table */}
-      <View style={{ gap: 8 }}>
-        <PlayersCircleTable
-                  players={players}
-                  mode="highlight"
-                  radius={150}
-                  focusPlayerId={'mjmau3ug-46uteo'}
-                />
-      </View>
-
-      {/* Bottom: mode buttons */}
+      {/* Bottom */}
       <View style={styles.bottomBar}>
         <Pressable
           onPress={() => setMode('first')}
-          style={[styles.switchBtn, mode === 'first' ? styles.switchOn : styles.switchOff]}
-          accessibilityRole="button"
-          accessibilityLabel="Show first night prompts"
+          style={[styles.switchBtn, mode === 'first' && styles.switchOn]}
         >
           <ThemedText>First Night</ThemedText>
         </Pressable>
 
         <Pressable
           onPress={() => setMode('other')}
-          style={[styles.switchBtn, mode === 'other' ? styles.switchOn : styles.switchOff]}
-          accessibilityRole="button"
-          accessibilityLabel="Show other nights prompts"
+          style={[styles.switchBtn, mode === 'other' && styles.switchOn]}
         >
           <ThemedText>Other Nights</ThemedText>
         </Pressable>
@@ -93,17 +174,63 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     gap: 12,
-    justifyContent: 'space-between', // pushes the buttons to the bottom
   },
+  top: {
+    gap: 8,
+  },
+  middle: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+
+  roleRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+  },
+
+  roleChip: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleChipOn: {
+    backgroundColor: 'rgba(158,0,0,0.25)',
+    borderColor: 'rgba(255,0,0,0.5)',
+  },
+  roleChipDisabled: {
+    opacity: 0.25,
+  },
+  roleIcon: {
+    width: 38,
+    height: 38,
+  },
+
+  promptBox: {
+    marginTop: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    gap: 4,
+    marginBottom: 150
+    // your marginBottom: 150 can stay here
+  },
+
   bottomBar: {
     flexDirection: 'row',
     gap: 10,
-    justifyContent: 'space-between',
   },
   switchBtn: {
     flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
@@ -113,8 +240,5 @@ const styles = StyleSheet.create({
   switchOn: {
     backgroundColor: 'rgba(158,0,0,0.25)',
     borderColor: 'rgba(255,0,0,0.5)',
-  },
-  switchOff: {
-    opacity: 0.9,
   },
 });
