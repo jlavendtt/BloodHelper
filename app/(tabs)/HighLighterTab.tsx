@@ -1,5 +1,5 @@
 // app/(tabs)/HighlighterTab.tsx
-import PlayersCircleHighlighter from '@/components/PlayersCircleHighlighter';
+import PlayersCircleTable from '@/components/PlayersCircleTable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import PromptsCarousel from '@/components/ui/PromptsCarousel';
@@ -56,13 +56,11 @@ export default function HighlighterTab() {
 
       {/* Middle: highlighter table */}
       <View style={{ gap: 8 }}>
-        <PlayersCircleHighlighter
-          players={players}
-          onHighlightsChange={(ids) => {
-            // handle highlighted player ids if needed
-            // console.log('Highlighted player ids:', ids);
-          }}
-        />
+        <PlayersCircleTable
+                  players={players}
+                  mode="highlight"
+                  radius={150}
+                />
       </View>
 
       {/* Bottom: mode buttons */}

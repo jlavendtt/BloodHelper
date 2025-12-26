@@ -49,4 +49,5 @@ export interface Role {
   affiliation: Affiliation;
   title: RoleName;
   picture: ImageSourcePropType;
+  prompt: string
 }
