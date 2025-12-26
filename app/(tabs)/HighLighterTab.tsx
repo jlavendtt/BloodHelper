@@ -60,6 +60,7 @@ export default function HighlighterTab() {
                   players={players}
                   mode="highlight"
                   radius={150}
+                  focusPlayerId={'mjmau3ug-46uteo'}
                 />
       </View>
 
