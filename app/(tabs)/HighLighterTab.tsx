@@ -1,6 +1,9 @@
 // app/(tabs)/HighlighterTab.tsx
+import FortuneTellerCheckModal from '@/components/modals/FortuneTellerCheckModal';
 import NumberSelectModal from '@/components/modals/NumberSelectModal';
 import PairAndRoleModal from '@/components/modals/PairAndRoleModal';
+import RavenkeeperModal from '@/components/modals/RavenkeeperModal';
+import UndertakerModal from '@/components/modals/UndertakerModal';
 import PlayersCircleTable from '@/components/PlayersCircleTable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -41,6 +44,11 @@ const OTHER_NIGHTS_ROLES: RoleName[] = [
   RoleName.Butler,
 ];
 
+const RAVEN_MODAL_ROLES: RoleName[] = [RoleName.Ravenkeeper];
+const FT_MODAL_ROLES: RoleName[] = [RoleName.FortuneTeller];
+const UNDERTAKER_MODAL_ROLES: RoleName[] = [RoleName.Undertaker];
+
+
 
 
 const LOCKED_NAV_HEIGHT = 150;
@@ -55,6 +63,16 @@ type PairState = {
 };
 
 const [pairStateByRole, setPairStateByRole] = useState<Record<string, PairState>>({});
+const [ravenOpen, setRavenOpen] = useState(false);
+const [ftOpen, setFtOpen] = useState(false);
+const [undertakerOpen, setUndertakerOpen] = useState(false);
+type RevealState = { selectedPlayerId: string | null; highlightedRole: RoleName | null };
+const [ravenByRole, setRavenByRole] = useState<Record<string, RevealState>>({});
+const [undertakerByRole, setUndertakerByRole] = useState<Record<string, RevealState>>({});
+
+// Fortune Teller result per role
+const [ftResultByRole, setFtResultByRole] = useState<Record<string, boolean | null>>({});
+
 
   const [numberModalOpen, setNumberModalOpen] = useState(false);
   const [selectedNumber, setSelectedNumber] = useState<0 | 1 | 2 | null>(null);
@@ -93,6 +111,34 @@ const PAIR_MODAL_ROLES: RoleName[] = [
     },
   }));
 };
+
+const defaultReveal: RevealState = { selectedPlayerId: null, highlightedRole: null };
+
+const ravenState = selectedRole ? (ravenByRole[selectedRole] ?? defaultReveal) : defaultReveal;
+const undertakerState = selectedRole ? (undertakerByRole[selectedRole] ?? defaultReveal) : defaultReveal;
+const ftResult = selectedRole ? (ftResultByRole[selectedRole] ?? null) : null;
+
+const updateRaven = (patch: Partial<RevealState>) => {
+  if (!selectedRole) return;
+  setRavenByRole((prev) => ({
+    ...prev,
+    [selectedRole]: { ...(prev[selectedRole] ?? defaultReveal), ...patch },
+  }));
+};
+
+const updateUndertaker = (patch: Partial<RevealState>) => {
+  if (!selectedRole) return;
+  setUndertakerByRole((prev) => ({
+    ...prev,
+    [selectedRole]: { ...(prev[selectedRole] ?? defaultReveal), ...patch },
+  }));
+};
+
+const updateFT = (v: boolean) => {
+  if (!selectedRole) return;
+  setFtResultByRole((prev) => ({ ...prev, [selectedRole]: v }));
+};
+
 
 
 
@@ -304,8 +350,24 @@ const PAIR_MODAL_ROLES: RoleName[] = [
     return;
   }
 
+  if (RAVEN_MODAL_ROLES.includes(selectedRole)) {
+    setRavenOpen(true);
+    return;
+  }
+
+  if (FT_MODAL_ROLES.includes(selectedRole)) {
+    setFtOpen(true);
+    return;
+  }
+
+  if (UNDERTAKER_MODAL_ROLES.includes(selectedRole)) {
+    setUndertakerOpen(true);
+    return;
+  }
+
   setHiOpen(true);
 }}
+
 
 
 />
@@ -372,6 +434,35 @@ const PAIR_MODAL_ROLES: RoleName[] = [
   onChangePlayer2={(id) => updatePairStateForCurrentRole({ player2Id: id })}
   onChangeHighlightedRole={(role) => updatePairStateForCurrentRole({ highlightedRole: role })}
 />
+<RavenkeeperModal
+  visible={ravenOpen}
+  onClose={() => setRavenOpen(false)}
+  players={players}
+  excludedPlayerId={focusPlayerId}
+  selectedPlayerId={ravenState.selectedPlayerId}
+  highlightedRole={ravenState.highlightedRole}
+  onChangePlayer={(id) => updateRaven({ selectedPlayerId: id })}
+  onChangeHighlightedRole={(role) => updateRaven({ highlightedRole: role })}
+/>
+
+<FortuneTellerCheckModal
+  visible={ftOpen}
+  value={ftResult}
+  onChange={(v) => updateFT(v)}
+  onClose={() => setFtOpen(false)}
+/>
+
+<UndertakerModal
+  visible={undertakerOpen}
+  onClose={() => setUndertakerOpen(false)}
+  players={players}
+  excludedPlayerId={focusPlayerId}
+  selectedPlayerId={undertakerState.selectedPlayerId}
+  highlightedRole={undertakerState.highlightedRole}
+  onChangePlayer={(id) => updateUndertaker({ selectedPlayerId: id })}
+  onChangeHighlightedRole={(role) => updateUndertaker({ highlightedRole: role })}
+/>
+
 
 
 
