@@ -1,4 +1,6 @@
 // app/(tabs)/HighlighterTab.tsx
+import NumberSelectModal from '@/components/modals/NumberSelectModal';
+import PairAndRoleModal from '@/components/modals/PairAndRoleModal';
 import PlayersCircleTable from '@/components/PlayersCircleTable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -9,6 +11,7 @@ import { useRoleStore } from '@/stores/roleStore';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+
 
 
 
@@ -43,12 +46,57 @@ const OTHER_NIGHTS_ROLES: RoleName[] = [
 const LOCKED_NAV_HEIGHT = 150;
 
 export default function HighlighterTab() {
+  const [pairModalOpen, setPairModalOpen] = useState(false);
+
+type PairState = {
+  player1Id: string | null;
+  player2Id: string | null;
+  highlightedRole: RoleName | null;
+};
+
+const [pairStateByRole, setPairStateByRole] = useState<Record<string, PairState>>({});
+
+  const [numberModalOpen, setNumberModalOpen] = useState(false);
+  const [selectedNumber, setSelectedNumber] = useState<0 | 1 | 2 | null>(null);
   const { players } = usePlayersStore();
   const assigned = useRoleStore((s) => s.assigned) as Record<string, RoleName | undefined>;
   const [hiOpen, setHiOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('first');
   const [selectedRole, setSelectedRole] = useState<RoleName | null>(null);
   const [locked, setLocked] = useState(false);
+  const NUMBER_MODAL_ROLES: RoleName[] = [
+  RoleName.Chef,
+  RoleName.Empath,
+];
+
+
+const PAIR_MODAL_ROLES: RoleName[] = [
+  RoleName.Librarian,
+  RoleName.Investigator,
+  RoleName.Washerwoman,
+];
+
+
+
+  const currentPairState: PairState = selectedRole
+  ? (pairStateByRole[selectedRole] ?? { player1Id: null, player2Id: null, highlightedRole: null })
+  : { player1Id: null, player2Id: null, highlightedRole: null };
+
+  const updatePairStateForCurrentRole = (patch: Partial<PairState>) => {
+  if (!selectedRole) return;
+
+  setPairStateByRole((prev) => ({
+    ...prev,
+    [selectedRole]: {
+      ...prev[selectedRole],
+      ...patch,
+    },
+  }));
+};
+
+
+
+  
 
   // ✅ per-role highlights memory
   const [highlightsByRole, setHighlightsByRole] = useState<Record<string, string[]>>({});
@@ -243,7 +291,23 @@ export default function HighlighterTab() {
   key={selectedRole ?? 'no-role'}
   initialHighlightedIds={currentHighlights}
   onHighlightsChange={onHighlightsChangeForCurrentRole}
-  onCenterPressHighlight={() => setHiOpen(true)}
+  onCenterPressHighlight={() => {
+  if (!selectedRole) return;
+
+  if (PAIR_MODAL_ROLES.includes(selectedRole)) {
+    setPairModalOpen(true);
+    return;
+  }
+
+  if (NUMBER_MODAL_ROLES.includes(selectedRole)) {
+    setNumberModalOpen(true);
+    return;
+  }
+
+  setHiOpen(true);
+}}
+
+
 />
 
       </View>
@@ -290,6 +354,26 @@ export default function HighlighterTab() {
     </View>
   </View>
 </Modal>
+<NumberSelectModal
+  visible={numberModalOpen}
+  value={selectedNumber}
+  onChange={(v) => setSelectedNumber(v)}
+  onClose={() => setNumberModalOpen(false)}
+/>
+<PairAndRoleModal
+  visible={pairModalOpen}
+  onClose={() => setPairModalOpen(false)}
+  players={players}
+  excludedPlayerId={focusPlayerId}
+  player1Id={currentPairState.player1Id}
+  player2Id={currentPairState.player2Id}
+  highlightedRole={currentPairState.highlightedRole}
+  onChangePlayer1={(id) => updatePairStateForCurrentRole({ player1Id: id })}
+  onChangePlayer2={(id) => updatePairStateForCurrentRole({ player2Id: id })}
+  onChangeHighlightedRole={(role) => updatePairStateForCurrentRole({ highlightedRole: role })}
+/>
+
+
 
     </ThemedView>
   );
