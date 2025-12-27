@@ -8,7 +8,9 @@ import { usePlayersStore } from '@/stores/playerStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+
+
 
 type Mode = 'first' | 'other';
 
@@ -36,12 +38,14 @@ const OTHER_NIGHTS_ROLES: RoleName[] = [
   RoleName.Butler,
 ];
 
+
+
 const LOCKED_NAV_HEIGHT = 150;
 
 export default function HighlighterTab() {
   const { players } = usePlayersStore();
   const assigned = useRoleStore((s) => s.assigned) as Record<string, RoleName | undefined>;
-
+  const [hiOpen, setHiOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('first');
   const [selectedRole, setSelectedRole] = useState<RoleName | null>(null);
   const [locked, setLocked] = useState(false);
@@ -232,14 +236,16 @@ export default function HighlighterTab() {
       {/* Middle */}
       <View style={styles.middle}>
         <PlayersCircleTable
-          players={players}
-          mode="highlight"
-          radius={150}
-          focusPlayerId={focusPlayerId}
-          key={selectedRole ?? 'no-role'}
-          initialHighlightedIds={currentHighlights}
-          onHighlightsChange={onHighlightsChangeForCurrentRole}
-        />
+  players={players}
+  mode="highlight"
+  radius={150}
+  focusPlayerId={focusPlayerId}
+  key={selectedRole ?? 'no-role'}
+  initialHighlightedIds={currentHighlights}
+  onHighlightsChange={onHighlightsChangeForCurrentRole}
+  onCenterPressHighlight={() => setHiOpen(true)}
+/>
+
       </View>
 
       {/* Bottom */}
@@ -273,6 +279,18 @@ export default function HighlighterTab() {
           <ThemedText style={{ opacity: 0.9 }}>Lock</ThemedText>
         </Pressable>
       </View>
+      <Modal visible={hiOpen} transparent animationType="fade">
+  <View style={styles.hiOverlay}>
+    <View style={styles.hiCard}>
+      <Text style={styles.hiText}>Hi</Text>
+
+      <Pressable style={styles.hiCloseBtn} onPress={() => setHiOpen(false)}>
+        <Text style={styles.hiCloseText}>Close</Text>
+      </Pressable>
+    </View>
+  </View>
+</Modal>
+
     </ThemedView>
   );
 }
@@ -367,4 +385,40 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,0,0,0.5)',
   },
   checkmark: { fontSize: 12, lineHeight: 12 },
+
+  hiOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.55)',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+hiCard: {
+  width: '85%',
+  borderRadius: 14,
+  backgroundColor: 'rgba(0,0,0,0.85)',
+  padding: 18,
+  gap: 14,
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.12)',
+},
+hiText: {
+  color: '#fff',
+  fontSize: 20,
+  fontWeight: '700',
+  textAlign: 'center',
+},
+hiCloseBtn: {
+  alignSelf: 'center',
+  paddingVertical: 10,
+  paddingHorizontal: 18,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.12)',
+  backgroundColor: 'rgba(255,255,255,0.06)',
+},
+hiCloseText: {
+  color: '#fff',
+  fontWeight: '700',
+},
+
 });

@@ -29,6 +29,7 @@ type PlayerPressCtx = {
 
 type Props = {
   players: Player[];
+  onCenterPressHighlight?: () => void;
   mode?: 'table' | 'highlight';
   focusPlayerId?: string;
   onPlayerPress?: (ctx: PlayerPressCtx) => boolean | void;
@@ -55,7 +56,9 @@ export default function PlayersCircleTable({
   style,
   showRing = true,
   onOrderChange,
+  onCenterPressHighlight, // ✅ add this
 }: Props) {
+
   const [container, setContainer] = useState({ width: 0, height: 0 });
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -249,12 +252,18 @@ export default function PlayersCircleTable({
       })}
 
       <Pressable
-        onPress={() => setShowConfirm(true)}
-        style={[
-          styles.centerBtn,
-          { left: centerX - CENTER_BTN / 2, top: centerY - CENTER_BTN / 2 },
-        ]}
-      >
+  onPress={() => {
+    if (mode === 'highlight') {
+      onCenterPressHighlight?.();
+      return;
+    }
+    setShowConfirm(true);
+  }}
+  style={[
+    styles.centerBtn,
+    { left: centerX - CENTER_BTN / 2, top: centerY - CENTER_BTN / 2 },
+  ]}
+>
         <Image source={require('@/assets/meta/undo.png')} style={styles.centerImg} />
       </Pressable>
 

@@ -48,7 +48,6 @@ export default function AssignScreen() {
   const onPickRole = (role?: RoleName) => setSelectedRole(role);
 
   const handleAssignToPlayer = (playerId: string) => {
-    console.log('got here')
     if (!selectedRole) return;
     assignRole(playerId, selectedRole);
     setSelectedRole(undefined);
