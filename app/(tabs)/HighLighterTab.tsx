@@ -7,6 +7,7 @@ import UndertakerModal from '@/components/modals/UndertakerModal';
 import PlayersCircleTable from '@/components/PlayersCircleTable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Action } from '@/models/action';
 import { RoleName } from '@/models/role';
 import { rolesList } from '@/models/rolesList';
 import { usePlayersStore } from '@/stores/playerStore';
@@ -15,10 +16,20 @@ import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-
-
-
 type Mode = 'first' | 'other';
+type Player = { id: string; name: string };
+
+// ✅ Option 3: store whole players in state (not just ids)
+type PairState = {
+  player1: Player | null;
+  player2: Player | null;
+  highlightedRole: RoleName | null;
+};
+
+type RevealState = {
+  selectedPlayer: Player | null;
+  highlightedRole: RoleName | null;
+};
 
 const FIRST_NIGHT_ROLES: RoleName[] = [
   RoleName.Poisoner,
@@ -44,49 +55,9 @@ const OTHER_NIGHTS_ROLES: RoleName[] = [
   RoleName.Butler,
 ];
 
-const RAVEN_MODAL_ROLES: RoleName[] = [RoleName.Ravenkeeper];
-const FT_MODAL_ROLES: RoleName[] = [RoleName.FortuneTeller];
-const UNDERTAKER_MODAL_ROLES: RoleName[] = [RoleName.Undertaker];
-
-
-
-
 const LOCKED_NAV_HEIGHT = 150;
 
-export default function HighlighterTab() {
-  const [pairModalOpen, setPairModalOpen] = useState(false);
-
-type PairState = {
-  player1Id: string | null;
-  player2Id: string | null;
-  highlightedRole: RoleName | null;
-};
-
-const [pairStateByRole, setPairStateByRole] = useState<Record<string, PairState>>({});
-const [ravenOpen, setRavenOpen] = useState(false);
-const [ftOpen, setFtOpen] = useState(false);
-const [undertakerOpen, setUndertakerOpen] = useState(false);
-type RevealState = { selectedPlayerId: string | null; highlightedRole: RoleName | null };
-const [ravenByRole, setRavenByRole] = useState<Record<string, RevealState>>({});
-const [undertakerByRole, setUndertakerByRole] = useState<Record<string, RevealState>>({});
-
-// Fortune Teller result per role
-const [ftResultByRole, setFtResultByRole] = useState<Record<string, boolean | null>>({});
-
-
-  const [numberModalOpen, setNumberModalOpen] = useState(false);
-  const [selectedNumber, setSelectedNumber] = useState<0 | 1 | 2 | null>(null);
-  const { players } = usePlayersStore();
-  const assigned = useRoleStore((s) => s.assigned) as Record<string, RoleName | undefined>;
-  const [hiOpen, setHiOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>('first');
-  const [selectedRole, setSelectedRole] = useState<RoleName | null>(null);
-  const [locked, setLocked] = useState(false);
-  const NUMBER_MODAL_ROLES: RoleName[] = [
-  RoleName.Chef,
-  RoleName.Empath,
-];
-
+const NUMBER_MODAL_ROLES: RoleName[] = [RoleName.Chef, RoleName.Empath];
 
 const PAIR_MODAL_ROLES: RoleName[] = [
   RoleName.Librarian,
@@ -94,57 +65,44 @@ const PAIR_MODAL_ROLES: RoleName[] = [
   RoleName.Washerwoman,
 ];
 
+const RAVEN_MODAL_ROLES: RoleName[] = [RoleName.Ravenkeeper];
+const FT_MODAL_ROLES: RoleName[] = [RoleName.FortuneTeller];
+const UNDERTAKER_MODAL_ROLES: RoleName[] = [RoleName.Undertaker];
 
+const defaultPair: PairState = { player1: null, player2: null, highlightedRole: null };
+const defaultReveal: RevealState = { selectedPlayer: null, highlightedRole: null };
 
-  const currentPairState: PairState = selectedRole
-  ? (pairStateByRole[selectedRole] ?? { player1Id: null, player2Id: null, highlightedRole: null })
-  : { player1Id: null, player2Id: null, highlightedRole: null };
+export default function HighlighterTab() {
+  const { players } = usePlayersStore();
+  const assigned = useRoleStore((s) => s.assigned) as Record<string, RoleName | undefined>;
 
-  const updatePairStateForCurrentRole = (patch: Partial<PairState>) => {
-  if (!selectedRole) return;
+  const [mode, setMode] = useState<Mode>('first');
+  const [selectedRole, setSelectedRole] = useState<RoleName | null>(null);
+  const [locked, setLocked] = useState(false);
 
-  setPairStateByRole((prev) => ({
-    ...prev,
-    [selectedRole]: {
-      ...prev[selectedRole],
-      ...patch,
-    },
-  }));
-};
+  // legacy “hi” modal still in file (not used for default branch now)
+  const [hiOpen, setHiOpen] = useState(false);
 
-const defaultReveal: RevealState = { selectedPlayerId: null, highlightedRole: null };
+  // modals
+  const [pairModalOpen, setPairModalOpen] = useState(false);
+  const [numberModalOpen, setNumberModalOpen] = useState(false);
+  const [ravenOpen, setRavenOpen] = useState(false);
+  const [ftOpen, setFtOpen] = useState(false);
+  const [undertakerOpen, setUndertakerOpen] = useState(false);
 
-const ravenState = selectedRole ? (ravenByRole[selectedRole] ?? defaultReveal) : defaultReveal;
-const undertakerState = selectedRole ? (undertakerByRole[selectedRole] ?? defaultReveal) : defaultReveal;
-const ftResult = selectedRole ? (ftResultByRole[selectedRole] ?? null) : null;
+  // NumberSelectModal state
+  const [selectedNumber, setSelectedNumber] = useState<0 | 1 | 2 | null>(null);
 
-const updateRaven = (patch: Partial<RevealState>) => {
-  if (!selectedRole) return;
-  setRavenByRole((prev) => ({
-    ...prev,
-    [selectedRole]: { ...(prev[selectedRole] ?? defaultReveal), ...patch },
-  }));
-};
+  // per-role persisted modal state (✅ stores whole players)
+  const [pairStateByRole, setPairStateByRole] = useState<Record<string, PairState>>({});
+  const [ravenByRole, setRavenByRole] = useState<Record<string, RevealState>>({});
+  const [undertakerByRole, setUndertakerByRole] = useState<Record<string, RevealState>>({});
+  const [ftResultByRole, setFtResultByRole] = useState<Record<string, boolean | null>>({});
 
-const updateUndertaker = (patch: Partial<RevealState>) => {
-  if (!selectedRole) return;
-  setUndertakerByRole((prev) => ({
-    ...prev,
-    [selectedRole]: { ...(prev[selectedRole] ?? defaultReveal), ...patch },
-  }));
-};
+  // actions
+  const [actions, setActions] = useState<Action[]>([]);
 
-const updateFT = (v: boolean) => {
-  if (!selectedRole) return;
-  setFtResultByRole((prev) => ({ ...prev, [selectedRole]: v }));
-};
-
-
-
-
-  
-
-  // ✅ per-role highlights memory
+  // ✅ per-role circle highlights memory (ids)
   const [highlightsByRole, setHighlightsByRole] = useState<Record<string, string[]>>({});
 
   const roleOrder = useMemo(
@@ -158,14 +116,21 @@ const updateFT = (v: boolean) => {
     return map;
   }, []);
 
-  // ✅ role -> playerId, but only if player still exists
+  // handy lookup
+  const playerById = useMemo(() => {
+    const m = new Map<string, Player>();
+    for (const p of players) m.set(p.id, p);
+    return m;
+  }, [players]);
+
+  // ✅ role -> playerId (only if still exists)
   const playerIdForRole = useMemo(() => {
     const existingPlayerIds = new Set(players.map((p) => p.id));
-
     const map = new Map<RoleName, string>();
+
     for (const [playerId, role] of Object.entries(assigned ?? {})) {
       if (!role) continue;
-      if (!existingPlayerIds.has(playerId)) continue; // ✅ player removed -> ignore assignment
+      if (!existingPlayerIds.has(playerId)) continue;
       map.set(role, playerId);
     }
     return map;
@@ -179,7 +144,6 @@ const updateFT = (v: boolean) => {
     [roleOrder, roleByName]
   );
 
-  // Only roles that actually have a player assigned (navigable when locked)
   const navigableRoles = useMemo(() => {
     return rolesInThisMode
       .map((r) => r.title)
@@ -188,12 +152,10 @@ const updateFT = (v: boolean) => {
 
   const firstNavigableRole = useMemo(() => navigableRoles[0] ?? null, [navigableRoles]);
 
-  // default selection on mode change
   useEffect(() => {
     setSelectedRole(firstNavigableRole);
   }, [mode, firstNavigableRole]);
 
-  // if selected role becomes unassigned, jump to first available
   useEffect(() => {
     if (selectedRole && !playerIdForRole.get(selectedRole)) {
       setSelectedRole(firstNavigableRole);
@@ -229,8 +191,15 @@ const updateFT = (v: boolean) => {
   const playerName = focusedPlayer?.name ?? 'No player';
   const promptText = selectedRoleObj?.prompt?.trim() ? selectedRoleObj.prompt.trim() : 'No prompt.';
 
-  // ✅ role-specific highlights to feed into the table
+  // highlights for current role (ids)
   const currentHighlights = selectedRole ? (highlightsByRole[selectedRole] ?? []) : [];
+
+  // ✅ Option 3 helper: convert highlighted ids -> players
+  const highlightedPlayers = useMemo(() => {
+    return currentHighlights
+      .map((id) => playerById.get(id))
+      .filter(Boolean) as Player[];
+  }, [currentHighlights, playerById]);
 
   const onHighlightsChangeForCurrentRole = (ids: string[]) => {
     if (!selectedRole) return;
@@ -240,7 +209,80 @@ const updateFT = (v: boolean) => {
     }));
   };
 
-  // split icons into 2 rows (only used when not locked)
+  /* ---------- per-role modal state (Option 3) ---------- */
+
+  const currentPairState: PairState = selectedRole
+    ? (pairStateByRole[selectedRole] ?? defaultPair)
+    : defaultPair;
+
+  const updatePairStateForCurrentRole = (patch: Partial<PairState>) => {
+    if (!selectedRole) return;
+    setPairStateByRole((prev) => ({
+      ...prev,
+      [selectedRole]: {
+        ...(prev[selectedRole] ?? defaultPair),
+        ...patch,
+      },
+    }));
+  };
+
+  const ravenState: RevealState = selectedRole ? (ravenByRole[selectedRole] ?? defaultReveal) : defaultReveal;
+  const undertakerState: RevealState = selectedRole ? (undertakerByRole[selectedRole] ?? defaultReveal) : defaultReveal;
+  const ftResult = selectedRole ? (ftResultByRole[selectedRole] ?? null) : null;
+
+  const updateRaven = (patch: Partial<RevealState>) => {
+    if (!selectedRole) return;
+    setRavenByRole((prev) => ({
+      ...prev,
+      [selectedRole]: { ...(prev[selectedRole] ?? defaultReveal), ...patch },
+    }));
+  };
+
+  const updateUndertaker = (patch: Partial<RevealState>) => {
+    if (!selectedRole) return;
+    setUndertakerByRole((prev) => ({
+      ...prev,
+      [selectedRole]: { ...(prev[selectedRole] ?? defaultReveal), ...patch },
+    }));
+  };
+
+  const updateFT = (v: boolean) => {
+    if (!selectedRole) return;
+    setFtResultByRole((prev) => ({ ...prev, [selectedRole]: v }));
+  };
+
+  /* ---------- emitRoleAction (UPDATED: recipients are Players) ---------- */
+
+  const emitRoleAction = (opts?: {
+    recipients?: Player[];
+    result?: boolean;
+    isDrunk?: boolean;
+    roleToken?: RoleName;
+    number?: number;
+  }) => {
+    if (!selectedRole) return;
+
+    const roleObj = roleByName.get(selectedRole);
+    if (!roleObj?.doAction) return;
+
+    // ✅ doAction expects string[] today, so pass names derived from Player[]
+    const recipientNames = (opts?.recipients ?? []).map((p) => p.name);
+
+    const action = roleObj.doAction(
+      focusedPlayer?.name ?? 'No player',
+      recipientNames,
+      opts?.result,
+      opts?.isDrunk ?? false,
+      opts?.roleToken,
+      opts?.number
+    );
+
+    console.log(action);
+    setActions((prev) => [action, ...prev]);
+  };
+
+  /* ---------- UI helpers ---------- */
+
   const mid = Math.ceil(rolesInThisMode.length / 2);
   const row1 = rolesInThisMode.slice(0, mid);
   const row2 = rolesInThisMode.slice(mid);
@@ -330,48 +372,45 @@ const updateFT = (v: boolean) => {
       {/* Middle */}
       <View style={styles.middle}>
         <PlayersCircleTable
-  players={players}
-  mode="highlight"
-  radius={150}
-  focusPlayerId={focusPlayerId}
-  key={selectedRole ?? 'no-role'}
-  initialHighlightedIds={currentHighlights}
-  onHighlightsChange={onHighlightsChangeForCurrentRole}
-  onCenterPressHighlight={() => {
-  if (!selectedRole) return;
+          players={players}
+          mode="highlight"
+          radius={150}
+          focusPlayerId={focusPlayerId}
+          key={selectedRole ?? 'no-role'}
+          initialHighlightedIds={currentHighlights}
+          onHighlightsChange={onHighlightsChangeForCurrentRole}
+          onCenterPressHighlight={() => {
+            if (!selectedRole) return;
 
-  if (PAIR_MODAL_ROLES.includes(selectedRole)) {
-    setPairModalOpen(true);
-    return;
-  }
+            if (PAIR_MODAL_ROLES.includes(selectedRole)) {
+              setPairModalOpen(true);
+              return;
+            }
 
-  if (NUMBER_MODAL_ROLES.includes(selectedRole)) {
-    setNumberModalOpen(true);
-    return;
-  }
+            if (NUMBER_MODAL_ROLES.includes(selectedRole)) {
+              setNumberModalOpen(true);
+              return;
+            }
 
-  if (RAVEN_MODAL_ROLES.includes(selectedRole)) {
-    setRavenOpen(true);
-    return;
-  }
+            if (RAVEN_MODAL_ROLES.includes(selectedRole)) {
+              setRavenOpen(true);
+              return;
+            }
 
-  if (FT_MODAL_ROLES.includes(selectedRole)) {
-    setFtOpen(true);
-    return;
-  }
+            if (FT_MODAL_ROLES.includes(selectedRole)) {
+              setFtOpen(true);
+              return;
+            }
 
-  if (UNDERTAKER_MODAL_ROLES.includes(selectedRole)) {
-    setUndertakerOpen(true);
-    return;
-  }
+            if (UNDERTAKER_MODAL_ROLES.includes(selectedRole)) {
+              setUndertakerOpen(true);
+              return;
+            }
 
-  setHiOpen(true);
-}}
-
-
-
-/>
-
+            // ✅ default: roles with no special modal -> use highlighted players
+            emitRoleAction({ recipients: highlightedPlayers });
+          }}
+        />
       </View>
 
       {/* Bottom */}
@@ -405,67 +444,112 @@ const updateFT = (v: boolean) => {
           <ThemedText style={{ opacity: 0.9 }}>Lock</ThemedText>
         </Pressable>
       </View>
+
+      {/* legacy HI modal kept (not used by default branch now) */}
       <Modal visible={hiOpen} transparent animationType="fade">
-  <View style={styles.hiOverlay}>
-    <View style={styles.hiCard}>
-      <Text style={styles.hiText}>Hi</Text>
+        <View style={styles.hiOverlay}>
+          <View style={styles.hiCard}>
+            <Text style={styles.hiText}>Hi</Text>
+            <Pressable style={styles.hiCloseBtn} onPress={() => setHiOpen(false)}>
+              <Text style={styles.hiCloseText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
-      <Pressable style={styles.hiCloseBtn} onPress={() => setHiOpen(false)}>
-        <Text style={styles.hiCloseText}>Close</Text>
-      </Pressable>
-    </View>
-  </View>
-</Modal>
-<NumberSelectModal
-  visible={numberModalOpen}
-  value={selectedNumber}
-  onChange={(v) => setSelectedNumber(v)}
-  onClose={() => setNumberModalOpen(false)}
-/>
-<PairAndRoleModal
-  visible={pairModalOpen}
-  onClose={() => setPairModalOpen(false)}
-  players={players}
-  excludedPlayerId={focusPlayerId}
-  player1Id={currentPairState.player1Id}
-  player2Id={currentPairState.player2Id}
-  highlightedRole={currentPairState.highlightedRole}
-  onChangePlayer1={(id) => updatePairStateForCurrentRole({ player1Id: id })}
-  onChangePlayer2={(id) => updatePairStateForCurrentRole({ player2Id: id })}
-  onChangeHighlightedRole={(role) => updatePairStateForCurrentRole({ highlightedRole: role })}
-/>
-<RavenkeeperModal
-  visible={ravenOpen}
-  onClose={() => setRavenOpen(false)}
-  players={players}
-  excludedPlayerId={focusPlayerId}
-  selectedPlayerId={ravenState.selectedPlayerId}
-  highlightedRole={ravenState.highlightedRole}
-  onChangePlayer={(id) => updateRaven({ selectedPlayerId: id })}
-  onChangeHighlightedRole={(role) => updateRaven({ highlightedRole: role })}
-/>
+      {/* Number modal -> emits number */}
+      <NumberSelectModal
+        visible={numberModalOpen}
+        value={selectedNumber}
+        onChange={(v) => setSelectedNumber(v)}
+        onClose={() => {
+          emitRoleAction({ number: selectedNumber ?? undefined });
+          setNumberModalOpen(false);
+        }}
+      />
 
-<FortuneTellerCheckModal
-  visible={ftOpen}
-  value={ftResult}
-  onChange={(v) => updateFT(v)}
-  onClose={() => setFtOpen(false)}
-/>
+      {/* Pair modal -> emits recipients + roleToken
+          (modal still works with ids; we convert id -> Player for state) */}
+      <PairAndRoleModal
+        visible={pairModalOpen}
+        onClose={() => {
+          emitRoleAction({
+            recipients: [currentPairState.player1, currentPairState.player2].filter(Boolean) as Player[],
+            roleToken: currentPairState.highlightedRole ?? undefined,
+          });
+          setPairModalOpen(false);
+        }}
+        players={players}
+        excludedPlayerId={focusPlayerId}
+        player1Id={currentPairState.player1?.id ?? null}
+        player2Id={currentPairState.player2?.id ?? null}
+        highlightedRole={currentPairState.highlightedRole}
+        onChangePlayer1={(id) => {
+          const next = id ? playerById.get(id) ?? null : null;
+          updatePairStateForCurrentRole({ player1: next });
+        }}
+        onChangePlayer2={(id) => {
+          const next = id ? playerById.get(id) ?? null : null;
+          updatePairStateForCurrentRole({ player2: next });
+        }}
+        onChangeHighlightedRole={(role) => updatePairStateForCurrentRole({ highlightedRole: role })}
+      />
 
-<UndertakerModal
-  visible={undertakerOpen}
-  onClose={() => setUndertakerOpen(false)}
-  players={players}
-  excludedPlayerId={focusPlayerId}
-  selectedPlayerId={undertakerState.selectedPlayerId}
-  highlightedRole={undertakerState.highlightedRole}
-  onChangePlayer={(id) => updateUndertaker({ selectedPlayerId: id })}
-  onChangeHighlightedRole={(role) => updateUndertaker({ highlightedRole: role })}
-/>
+      {/* Ravenkeeper -> emits recipient + roleToken */}
+      <RavenkeeperModal
+        visible={ravenOpen}
+        onClose={() => {
+          emitRoleAction({
+            recipients: ravenState.selectedPlayer ? [ravenState.selectedPlayer] : [],
+            roleToken: ravenState.highlightedRole ?? undefined,
+          });
+          setRavenOpen(false);
+        }}
+        players={players}
+        excludedPlayerId={focusPlayerId}
+        selectedPlayerId={ravenState.selectedPlayer?.id ?? null}
+        highlightedRole={ravenState.highlightedRole}
+        onChangePlayer={(id) => {
+          const next = id ? playerById.get(id) ?? null : null;
+          updateRaven({ selectedPlayer: next });
+        }}
+        onChangeHighlightedRole={(role) => updateRaven({ highlightedRole: role })}
+      />
 
+      {/* Fortune Teller -> emits 2 highlighted players + boolean result */}
+      <FortuneTellerCheckModal
+        visible={ftOpen}
+        value={ftResult}
+        onChange={(v) => updateFT(v)}
+        onClose={() => {
+          emitRoleAction({
+            recipients: highlightedPlayers.slice(0, 2),
+            result: ftResult ?? undefined,
+          });
+          setFtOpen(false);
+        }}
+      />
 
-
-
+      {/* Undertaker -> emits recipient + roleToken */}
+      <UndertakerModal
+        visible={undertakerOpen}
+        onClose={() => {
+          emitRoleAction({
+            recipients: undertakerState.selectedPlayer ? [undertakerState.selectedPlayer] : [],
+            roleToken: undertakerState.highlightedRole ?? undefined,
+          });
+          setUndertakerOpen(false);
+        }}
+        players={players}
+        excludedPlayerId={focusPlayerId}
+        selectedPlayerId={undertakerState.selectedPlayer?.id ?? null}
+        highlightedRole={undertakerState.highlightedRole}
+        onChangePlayer={(id) => {
+          const next = id ? playerById.get(id) ?? null : null;
+          updateUndertaker({ selectedPlayer: next });
+        }}
+        onChangeHighlightedRole={(role) => updateUndertaker({ highlightedRole: role })}
+      />
     </ThemedView>
   );
 }
@@ -562,38 +646,37 @@ const styles = StyleSheet.create({
   checkmark: { fontSize: 12, lineHeight: 12 },
 
   hiOverlay: {
-  flex: 1,
-  backgroundColor: 'rgba(0,0,0,0.55)',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-hiCard: {
-  width: '85%',
-  borderRadius: 14,
-  backgroundColor: 'rgba(0,0,0,0.85)',
-  padding: 18,
-  gap: 14,
-  borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.12)',
-},
-hiText: {
-  color: '#fff',
-  fontSize: 20,
-  fontWeight: '700',
-  textAlign: 'center',
-},
-hiCloseBtn: {
-  alignSelf: 'center',
-  paddingVertical: 10,
-  paddingHorizontal: 18,
-  borderRadius: 12,
-  borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.12)',
-  backgroundColor: 'rgba(255,255,255,0.06)',
-},
-hiCloseText: {
-  color: '#fff',
-  fontWeight: '700',
-},
-
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hiCard: {
+    width: '85%',
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    padding: 18,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  hiText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  hiCloseBtn: {
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  hiCloseText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
 });
