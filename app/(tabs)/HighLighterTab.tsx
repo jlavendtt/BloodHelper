@@ -1,35 +1,20 @@
 // app/(tabs)/HighlighterTab.tsx
-import FortuneTellerCheckModal from '@/components/modals/FortuneTellerCheckModal';
-import NumberSelectModal from '@/components/modals/NumberSelectModal';
-import PairAndRoleModal from '@/components/modals/PairAndRoleModal';
-import RavenkeeperModal from '@/components/modals/RavenkeeperModal';
-import UndertakerModal from '@/components/modals/UndertakerModal';
+import HighlighterModals from '@/components/highlighter/HighlighterModal';
 import PlayersCircleTable from '@/components/PlayersCircleTable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Action } from '@/models/action';
+import { useHighlighterActionsAndModals } from '@/hooks/useHighLighterActionsAndModal';
+import type { Action } from '@/models/action';
 import { RoleName } from '@/models/role';
 import { rolesList } from '@/models/rolesList';
 import { usePlayersStore } from '@/stores/playerStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 type Mode = 'first' | 'other';
 type Player = { id: string; name: string };
-
-// ✅ Option 3: store whole players in state (not just ids)
-type PairState = {
-  player1: Player | null;
-  player2: Player | null;
-  highlightedRole: RoleName | null;
-};
-
-type RevealState = {
-  selectedPlayer: Player | null;
-  highlightedRole: RoleName | null;
-};
 
 const FIRST_NIGHT_ROLES: RoleName[] = [
   RoleName.Poisoner,
@@ -57,21 +42,6 @@ const OTHER_NIGHTS_ROLES: RoleName[] = [
 
 const LOCKED_NAV_HEIGHT = 150;
 
-const NUMBER_MODAL_ROLES: RoleName[] = [RoleName.Chef, RoleName.Empath];
-
-const PAIR_MODAL_ROLES: RoleName[] = [
-  RoleName.Librarian,
-  RoleName.Investigator,
-  RoleName.Washerwoman,
-];
-
-const RAVEN_MODAL_ROLES: RoleName[] = [RoleName.Ravenkeeper];
-const FT_MODAL_ROLES: RoleName[] = [RoleName.FortuneTeller];
-const UNDERTAKER_MODAL_ROLES: RoleName[] = [RoleName.Undertaker];
-
-const defaultPair: PairState = { player1: null, player2: null, highlightedRole: null };
-const defaultReveal: RevealState = { selectedPlayer: null, highlightedRole: null };
-
 export default function HighlighterTab() {
   const { players } = usePlayersStore();
   const assigned = useRoleStore((s) => s.assigned) as Record<string, RoleName | undefined>;
@@ -80,29 +50,9 @@ export default function HighlighterTab() {
   const [selectedRole, setSelectedRole] = useState<RoleName | null>(null);
   const [locked, setLocked] = useState(false);
 
-  // legacy “hi” modal still in file (not used for default branch now)
-  const [hiOpen, setHiOpen] = useState(false);
-
-  // modals
-  const [pairModalOpen, setPairModalOpen] = useState(false);
-  const [numberModalOpen, setNumberModalOpen] = useState(false);
-  const [ravenOpen, setRavenOpen] = useState(false);
-  const [ftOpen, setFtOpen] = useState(false);
-  const [undertakerOpen, setUndertakerOpen] = useState(false);
-
-  // NumberSelectModal state
-  const [selectedNumber, setSelectedNumber] = useState<0 | 1 | 2 | null>(null);
-
-  // per-role persisted modal state (✅ stores whole players)
-  const [pairStateByRole, setPairStateByRole] = useState<Record<string, PairState>>({});
-  const [ravenByRole, setRavenByRole] = useState<Record<string, RevealState>>({});
-  const [undertakerByRole, setUndertakerByRole] = useState<Record<string, RevealState>>({});
-  const [ftResultByRole, setFtResultByRole] = useState<Record<string, boolean | null>>({});
-
-  // actions
   const [actions, setActions] = useState<Action[]>([]);
 
-  // ✅ per-role circle highlights memory (ids)
+  // ✅ per-role highlights memory (ids)
   const [highlightsByRole, setHighlightsByRole] = useState<Record<string, string[]>>({});
 
   const roleOrder = useMemo(
@@ -116,18 +66,17 @@ export default function HighlighterTab() {
     return map;
   }, []);
 
-  // handy lookup
   const playerById = useMemo(() => {
     const m = new Map<string, Player>();
     for (const p of players) m.set(p.id, p);
     return m;
   }, [players]);
 
-  // ✅ role -> playerId (only if still exists)
+  // role -> playerId (only if player still exists)
   const playerIdForRole = useMemo(() => {
     const existingPlayerIds = new Set(players.map((p) => p.id));
-    const map = new Map<RoleName, string>();
 
+    const map = new Map<RoleName, string>();
     for (const [playerId, role] of Object.entries(assigned ?? {})) {
       if (!role) continue;
       if (!existingPlayerIds.has(playerId)) continue;
@@ -191,10 +140,8 @@ export default function HighlighterTab() {
   const playerName = focusedPlayer?.name ?? 'No player';
   const promptText = selectedRoleObj?.prompt?.trim() ? selectedRoleObj.prompt.trim() : 'No prompt.';
 
-  // highlights for current role (ids)
   const currentHighlights = selectedRole ? (highlightsByRole[selectedRole] ?? []) : [];
 
-  // ✅ Option 3 helper: convert highlighted ids -> players
   const highlightedPlayers = useMemo(() => {
     return currentHighlights
       .map((id) => playerById.get(id))
@@ -203,85 +150,22 @@ export default function HighlighterTab() {
 
   const onHighlightsChangeForCurrentRole = (ids: string[]) => {
     if (!selectedRole) return;
-    setHighlightsByRole((prev) => ({
-      ...prev,
-      [selectedRole]: ids,
-    }));
+    setHighlightsByRole((prev) => ({ ...prev, [selectedRole]: ids }));
   };
 
-  /* ---------- per-role modal state (Option 3) ---------- */
-
-  const currentPairState: PairState = selectedRole
-    ? (pairStateByRole[selectedRole] ?? defaultPair)
-    : defaultPair;
-
-  const updatePairStateForCurrentRole = (patch: Partial<PairState>) => {
-    if (!selectedRole) return;
-    setPairStateByRole((prev) => ({
-      ...prev,
-      [selectedRole]: {
-        ...(prev[selectedRole] ?? defaultPair),
-        ...patch,
-      },
-    }));
-  };
-
-  const ravenState: RevealState = selectedRole ? (ravenByRole[selectedRole] ?? defaultReveal) : defaultReveal;
-  const undertakerState: RevealState = selectedRole ? (undertakerByRole[selectedRole] ?? defaultReveal) : defaultReveal;
-  const ftResult = selectedRole ? (ftResultByRole[selectedRole] ?? null) : null;
-
-  const updateRaven = (patch: Partial<RevealState>) => {
-    if (!selectedRole) return;
-    setRavenByRole((prev) => ({
-      ...prev,
-      [selectedRole]: { ...(prev[selectedRole] ?? defaultReveal), ...patch },
-    }));
-  };
-
-  const updateUndertaker = (patch: Partial<RevealState>) => {
-    if (!selectedRole) return;
-    setUndertakerByRole((prev) => ({
-      ...prev,
-      [selectedRole]: { ...(prev[selectedRole] ?? defaultReveal), ...patch },
-    }));
-  };
-
-  const updateFT = (v: boolean) => {
-    if (!selectedRole) return;
-    setFtResultByRole((prev) => ({ ...prev, [selectedRole]: v }));
-  };
-
-  /* ---------- emitRoleAction (UPDATED: recipients are Players) ---------- */
-
-  const emitRoleAction = (opts?: {
-    recipients?: Player[];
-    result?: boolean;
-    isDrunk?: boolean;
-    roleToken?: RoleName;
-    number?: number;
-  }) => {
-    if (!selectedRole) return;
-
-    const roleObj = roleByName.get(selectedRole);
-    if (!roleObj?.doAction) return;
-
-    // ✅ doAction expects string[] today, so pass names derived from Player[]
-    const recipientNames = (opts?.recipients ?? []).map((p) => p.name);
-
-    const action = roleObj.doAction(
-      focusedPlayer?.name ?? 'No player',
-      recipientNames,
-      opts?.result,
-      opts?.isDrunk ?? false,
-      opts?.roleToken,
-      opts?.number
-    );
-
-    console.log(action);
-    setActions((prev) => [action, ...prev]);
-  };
-
-  /* ---------- UI helpers ---------- */
+  // ✅ all modal + action logic extracted
+  const { onCenterPressHighlight, modals } = useHighlighterActionsAndModals({
+    players,
+    selectedRole,
+    focusedPlayerName: focusedPlayer?.name,
+    excludedPlayerId: focusPlayerId,
+    highlightedPlayers,
+    roleByName,
+    onAction: (a) => {
+      console.log(a);
+      setActions((prev) => [a, ...prev]);
+    },
+  });
 
   const mid = Math.ceil(rolesInThisMode.length / 2);
   const row1 = rolesInThisMode.slice(0, mid);
@@ -356,11 +240,7 @@ export default function HighlighterTab() {
           </ThemedText>
 
           {selectedRoleObj?.picture ? (
-            <Image
-              source={selectedRoleObj.picture}
-              style={styles.promptRoleIcon}
-              contentFit="contain"
-            />
+            <Image source={selectedRoleObj.picture} style={styles.promptRoleIcon} contentFit="contain" />
           ) : null}
 
           <ThemedText numberOfLines={1} ellipsizeMode="tail" style={styles.promptText}>
@@ -379,37 +259,7 @@ export default function HighlighterTab() {
           key={selectedRole ?? 'no-role'}
           initialHighlightedIds={currentHighlights}
           onHighlightsChange={onHighlightsChangeForCurrentRole}
-          onCenterPressHighlight={() => {
-            if (!selectedRole) return;
-
-            if (PAIR_MODAL_ROLES.includes(selectedRole)) {
-              setPairModalOpen(true);
-              return;
-            }
-
-            if (NUMBER_MODAL_ROLES.includes(selectedRole)) {
-              setNumberModalOpen(true);
-              return;
-            }
-
-            if (RAVEN_MODAL_ROLES.includes(selectedRole)) {
-              setRavenOpen(true);
-              return;
-            }
-
-            if (FT_MODAL_ROLES.includes(selectedRole)) {
-              setFtOpen(true);
-              return;
-            }
-
-            if (UNDERTAKER_MODAL_ROLES.includes(selectedRole)) {
-              setUndertakerOpen(true);
-              return;
-            }
-
-            // ✅ default: roles with no special modal -> use highlighted players
-            emitRoleAction({ recipients: highlightedPlayers });
-          }}
+          onCenterPressHighlight={onCenterPressHighlight}
         />
       </View>
 
@@ -445,110 +295,13 @@ export default function HighlighterTab() {
         </Pressable>
       </View>
 
-      {/* legacy HI modal kept (not used by default branch now) */}
-      <Modal visible={hiOpen} transparent animationType="fade">
-        <View style={styles.hiOverlay}>
-          <View style={styles.hiCard}>
-            <Text style={styles.hiText}>Hi</Text>
-            <Pressable style={styles.hiCloseBtn} onPress={() => setHiOpen(false)}>
-              <Text style={styles.hiCloseText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Number modal -> emits number */}
-      <NumberSelectModal
-        visible={numberModalOpen}
-        value={selectedNumber}
-        onChange={(v) => setSelectedNumber(v)}
-        onClose={() => {
-          emitRoleAction({ number: selectedNumber ?? undefined });
-          setNumberModalOpen(false);
-        }}
-      />
-
-      {/* Pair modal -> emits recipients + roleToken
-          (modal still works with ids; we convert id -> Player for state) */}
-      <PairAndRoleModal
-        visible={pairModalOpen}
-        onClose={() => {
-          emitRoleAction({
-            recipients: [currentPairState.player1, currentPairState.player2].filter(Boolean) as Player[],
-            roleToken: currentPairState.highlightedRole ?? undefined,
-          });
-          setPairModalOpen(false);
-        }}
-        players={players}
-        excludedPlayerId={focusPlayerId}
-        player1Id={currentPairState.player1?.id ?? null}
-        player2Id={currentPairState.player2?.id ?? null}
-        highlightedRole={currentPairState.highlightedRole}
-        onChangePlayer1={(id) => {
-          const next = id ? playerById.get(id) ?? null : null;
-          updatePairStateForCurrentRole({ player1: next });
-        }}
-        onChangePlayer2={(id) => {
-          const next = id ? playerById.get(id) ?? null : null;
-          updatePairStateForCurrentRole({ player2: next });
-        }}
-        onChangeHighlightedRole={(role) => updatePairStateForCurrentRole({ highlightedRole: role })}
-      />
-
-      {/* Ravenkeeper -> emits recipient + roleToken */}
-      <RavenkeeperModal
-        visible={ravenOpen}
-        onClose={() => {
-          emitRoleAction({
-            recipients: ravenState.selectedPlayer ? [ravenState.selectedPlayer] : [],
-            roleToken: ravenState.highlightedRole ?? undefined,
-          });
-          setRavenOpen(false);
-        }}
-        players={players}
-        excludedPlayerId={focusPlayerId}
-        selectedPlayerId={ravenState.selectedPlayer?.id ?? null}
-        highlightedRole={ravenState.highlightedRole}
-        onChangePlayer={(id) => {
-          const next = id ? playerById.get(id) ?? null : null;
-          updateRaven({ selectedPlayer: next });
-        }}
-        onChangeHighlightedRole={(role) => updateRaven({ highlightedRole: role })}
-      />
-
-      {/* Fortune Teller -> emits 2 highlighted players + boolean result */}
-      <FortuneTellerCheckModal
-        visible={ftOpen}
-        value={ftResult}
-        onChange={(v) => updateFT(v)}
-        onClose={() => {
-          emitRoleAction({
-            recipients: highlightedPlayers.slice(0, 2),
-            result: ftResult ?? undefined,
-          });
-          setFtOpen(false);
-        }}
-      />
-
-      {/* Undertaker -> emits recipient + roleToken */}
-      <UndertakerModal
-        visible={undertakerOpen}
-        onClose={() => {
-          emitRoleAction({
-            recipients: undertakerState.selectedPlayer ? [undertakerState.selectedPlayer] : [],
-            roleToken: undertakerState.highlightedRole ?? undefined,
-          });
-          setUndertakerOpen(false);
-        }}
-        players={players}
-        excludedPlayerId={focusPlayerId}
-        selectedPlayerId={undertakerState.selectedPlayer?.id ?? null}
-        highlightedRole={undertakerState.highlightedRole}
-        onChangePlayer={(id) => {
-          const next = id ? playerById.get(id) ?? null : null;
-          updateUndertaker({ selectedPlayer: next });
-        }}
-        onChangeHighlightedRole={(role) => updateUndertaker({ highlightedRole: role })}
+      {/* ✅ all modals are rendered here */}
+      <HighlighterModals
+        number={modals.number as any}
+        pair={modals.pair as any}
+        raven={modals.raven as any}
+        fortuneTeller={modals.fortuneTeller as any}
+        undertaker={modals.undertaker as any}
       />
     </ThemedView>
   );
@@ -571,10 +324,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  roleChipOn: {
-    backgroundColor: 'rgba(158,0,0,0.25)',
-    borderColor: 'rgba(255,0,0,0.5)',
-  },
+  roleChipOn: { backgroundColor: 'rgba(158,0,0,0.25)', borderColor: 'rgba(255,0,0,0.5)' },
   roleChipDisabled: { opacity: 0.25 },
   roleIcon: { width: 38, height: 38 },
 
@@ -617,10 +367,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  switchOn: {
-    backgroundColor: 'rgba(158,0,0,0.25)',
-    borderColor: 'rgba(255,0,0,0.5)',
-  },
+  switchOn: { backgroundColor: 'rgba(158,0,0,0.25)', borderColor: 'rgba(255,0,0,0.5)' },
 
   lockRow: {
     flexDirection: 'row',
@@ -639,44 +386,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxOn: {
-    backgroundColor: 'rgba(158,0,0,0.25)',
-    borderColor: 'rgba(255,0,0,0.5)',
-  },
+  checkboxOn: { backgroundColor: 'rgba(158,0,0,0.25)', borderColor: 'rgba(255,0,0,0.5)' },
   checkmark: { fontSize: 12, lineHeight: 12 },
-
-  hiOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  hiCard: {
-    width: '85%',
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    padding: 18,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  hiText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  hiCloseBtn: {
-    alignSelf: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  hiCloseText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
 });
