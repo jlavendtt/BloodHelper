@@ -9,12 +9,10 @@ import { rolesList } from '@/models/rolesList';
 import { useGameStore } from '@/stores/gameStore';
 import { usePlayersStore } from '@/stores/playerStore';
 import { useRoleStore } from '@/stores/roleStore';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-
-
-
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 
 type Mode = 'first' | 'other';
@@ -49,27 +47,26 @@ const LOCKED_NAV_HEIGHT = 150;
 export default function HighlighterTab() {
   const { players } = usePlayersStore();
   const assigned = useRoleStore((s) => s.assigned) as Record<string, RoleName | undefined>;
+  const nextNight = useGameStore((s) => s.nextNight);
+  const [endRoundOpen, setEndRoundOpen] = useState(false);
+
 
   const [mode, setMode] = useState<Mode>('first');
   const [selectedRole, setSelectedRole] = useState<RoleName | null>(null);
   const [locked, setLocked] = useState(false);
 
-
   const upsertAction = useGameStore((s) => s.upsertAction);
 
-// ...
+  // game stuff
+  const game = useGameStore((s) => s.game);
+  const startNewGame = useGameStore((s) => s.startNewGame);
 
-//game stuff
-const game = useGameStore((s) => s.game);
-const startNewGame = useGameStore((s) => s.startNewGame);
-
-useEffect(() => {
-  // If we have players but no game yet, start one
-  if (!game && players.length > 0) {
-    startNewGame(players);
-  }
-}, [game, players, startNewGame]);
-
+  useEffect(() => {
+    // If we have players but no game yet, start one
+    if (!game && players.length > 0) {
+      startNewGame(players);
+    }
+  }, [game, players, startNewGame]);
 
   // ✅ per-role highlights memory (ids)
   const [highlightsByRole, setHighlightsByRole] = useState<Record<string, string[]>>({});
@@ -143,6 +140,15 @@ useEffect(() => {
     setSelectedRole(navigableRoles[selectedIndex - 1] ?? null);
   };
 
+  const openEndRound = () => setEndRoundOpen(true);
+
+const confirmEndRound = () => {
+  setEndRoundOpen(false);
+  nextNight();
+  showToast(`✅ Round ended → ${useGameStore.getState().game?.currentRoundId ?? ''}`);
+};
+
+
   const goNext = () => {
     if (!hasNext) return;
     setSelectedRole(navigableRoles[selectedIndex + 1] ?? null);
@@ -172,6 +178,46 @@ useEffect(() => {
     setHighlightsByRole((prev) => ({ ...prev, [selectedRole]: ids }));
   };
 
+  // ---------------------------
+  // ✅ Toast (no dependency)
+  // ---------------------------
+  const [toastText, setToastText] = useState<string | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (text: string) => {
+    setToastText(text);
+
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+
+    // reset then fade in
+    toastOpacity.stopAnimation();
+    toastOpacity.setValue(0);
+
+    Animated.timing(toastOpacity, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setToastText(null);
+      });
+    }, 1100);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+  // ---------------------------
+
   // ✅ all modal + action logic extracted
   const { onCenterPressHighlight, modals } = useHighlighterActionsAndModals({
     players,
@@ -183,6 +229,9 @@ useEffect(() => {
     onAction: (a) => {
       console.log(a);
       upsertAction(a);
+
+      // ✅ toast for standard “action completed”
+      showToast('✅ ' + a.text);
     },
   });
 
@@ -190,29 +239,59 @@ useEffect(() => {
   const row1 = rolesInThisMode.slice(0, mid);
   const row2 = rolesInThisMode.slice(mid);
 
-  const renderRow = (row: typeof rolesInThisMode) => (
-    <View style={styles.roleRow}>
-      {row.map((r) => {
-        const isSelected = r.title === selectedRole;
-        const hasPlayer = Boolean(playerIdForRole.get(r.title));
+ const renderRow = (row: typeof rolesInThisMode) => (
+  <View style={styles.roleRow}>
+    {row.map((r) => {
+      const isSelected = r.title === selectedRole;
+      const hasPlayer = Boolean(playerIdForRole.get(r.title));
 
-        return (
-          <Pressable
-            key={String(r.title)}
-            disabled={!hasPlayer}
-            onPress={() => hasPlayer && setSelectedRole(r.title)}
-            style={[
-              styles.roleChip,
-              isSelected && styles.roleChipOn,
-              !hasPlayer && styles.roleChipDisabled,
-            ]}
-          >
-            <Image source={r.picture} style={styles.roleIcon} contentFit="contain" />
-          </Pressable>
-        );
-      })}
-    </View>
-  );
+      return (
+        <Pressable
+          key={String(r.title)}
+          disabled={!hasPlayer}
+          onPress={() => hasPlayer && setSelectedRole(r.title)}
+          style={[
+            styles.roleChip,
+            isSelected && styles.roleChipOn,
+            !hasPlayer && styles.roleChipDisabled,
+          ]}
+        >
+          <Image source={r.picture} style={styles.roleIcon} contentFit="contain" />
+        </Pressable>
+      );
+    })}
+  </View>
+);
+
+const renderRowWithEnd = (row: typeof rolesInThisMode) => (
+  <View style={styles.roleRow}>
+    {row.map((r) => {
+      const isSelected = r.title === selectedRole;
+      const hasPlayer = Boolean(playerIdForRole.get(r.title));
+
+      return (
+        <Pressable
+          key={String(r.title)}
+          disabled={!hasPlayer}
+          onPress={() => hasPlayer && setSelectedRole(r.title)}
+          style={[
+            styles.roleChip,
+            isSelected && styles.roleChipOn,
+            !hasPlayer && styles.roleChipDisabled,
+          ]}
+        >
+          <Image source={r.picture} style={styles.roleIcon} contentFit="contain" />
+        </Pressable>
+      );
+    })}
+
+    <Pressable onPress={openEndRound} style={[styles.roleChip, styles.endRoundChip]}>
+      <MaterialCommunityIcons name="weather-sunny" size={28} color="rgba(255,255,255,0.95)" />
+    </Pressable>
+  </View>
+);
+
+
 
   return (
     <ThemedView style={styles.screen}>
@@ -225,7 +304,8 @@ useEffect(() => {
             </ThemedText>
 
             {renderRow(row1)}
-            {row2.length > 0 && renderRow(row2)}
+{row2.length > 0 ? renderRowWithEnd(row2) : renderRowWithEnd(row1)}
+
           </>
         ) : (
           <View style={[styles.lockedNav, { height: LOCKED_NAV_HEIGHT }]}>
@@ -259,7 +339,11 @@ useEffect(() => {
           </ThemedText>
 
           {selectedRoleObj?.picture ? (
-            <Image source={selectedRoleObj.picture} style={styles.promptRoleIcon} contentFit="contain" />
+            <Image
+              source={selectedRoleObj.picture}
+              style={styles.promptRoleIcon}
+              contentFit="contain"
+            />
           ) : null}
 
           <ThemedText numberOfLines={1} ellipsizeMode="tail" style={styles.promptText}>
@@ -322,6 +406,47 @@ useEffect(() => {
         fortuneTeller={modals.fortuneTeller as any}
         undertaker={modals.undertaker as any}
       />
+
+      {/* ✅ Toast overlay */}
+      {toastText ? (
+        <Animated.View pointerEvents="none" style={[styles.toastWrap, { opacity: toastOpacity }]}>
+          <View style={styles.toastPill}>
+            <ThemedText style={styles.toastText}>{toastText}</ThemedText>
+          </View>
+        </Animated.View>
+      ) : null}
+      <Modal
+  transparent
+  visible={endRoundOpen}
+  animationType="fade"
+  onRequestClose={() => setEndRoundOpen(false)}
+>
+  <View style={styles.modalBackdrop}>
+    <View style={styles.modalCard}>
+      <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
+        End this round?
+      </ThemedText>
+
+      <ThemedText style={{ opacity: 0.9, textAlign: 'center', marginTop: 8 }}>
+        This will advance to the next night.
+      </ThemedText>
+
+      <View style={styles.modalBtns}>
+        <Pressable
+          onPress={() => setEndRoundOpen(false)}
+          style={[styles.modalBtn, styles.modalBtnGhost]}
+        >
+          <ThemedText>Cancel</ThemedText>
+        </Pressable>
+
+        <Pressable onPress={confirmEndRound} style={[styles.modalBtn, styles.modalBtnDanger]}>
+          <ThemedText>Yes</ThemedText>
+        </Pressable>
+      </View>
+    </View>
+  </View>
+</Modal>
+
     </ThemedView>
   );
 }
@@ -407,4 +532,72 @@ const styles = StyleSheet.create({
   },
   checkboxOn: { backgroundColor: 'rgba(158,0,0,0.25)', borderColor: 'rgba(255,0,0,0.5)' },
   checkmark: { fontSize: 12, lineHeight: 12 },
+
+  // ✅ toast styles
+  toastWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toastPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  toastText: { opacity: 0.95 },
+
+  endRoundChip: {
+  backgroundColor: 'rgba(255, 210, 0, 0.18)',
+  borderColor: 'rgba(255, 210, 0, 0.45)',
+},
+
+modalBackdrop: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.6)',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 18,
+},
+
+modalCard: {
+  width: '100%',
+  maxWidth: 420,
+  borderRadius: 16,
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.15)',
+  backgroundColor: 'rgba(20,20,20,0.98)',
+  padding: 16,
+},
+
+modalBtns: {
+  flexDirection: 'row',
+  gap: 10,
+  marginTop: 14,
+},
+
+modalBtn: {
+  flex: 1,
+  paddingVertical: 12,
+  borderRadius: 12,
+  borderWidth: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+modalBtnGhost: {
+  borderColor: 'rgba(255,255,255,0.18)',
+  backgroundColor: 'rgba(255,255,255,0.06)',
+},
+
+modalBtnDanger: {
+  borderColor: 'rgba(255,120,120,0.35)',
+  backgroundColor: 'rgba(158,0,0,0.35)',
+},
+
 });
