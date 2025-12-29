@@ -1,6 +1,6 @@
 // app/(tabs)/index.tsx
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
@@ -14,47 +14,56 @@ export default function HomeScreen() {
   const startNewGame = useGameStore((s) => s.startNewGame);
   const clearGame = useGameStore((s) => s.clearGame);
 
-  const { roundId, actions } = useMemo(() => {
-    if (!game) return { roundId: null as string | null, actions: [] as any[] };
-
-    const rid = game.currentRoundId;
-    const actionsByRole = game.roundsById[rid]?.actionsByRole ?? {};
-    const list = Object.values(actionsByRole).filter(Boolean);
-
-    list.sort((a, b) => String(a.type).localeCompare(String(b.type)));
-
-    return { roundId: rid, actions: list };
-  }, [game]);
-
   const canStart = players.length > 0;
 
+  // ✅ Build a list of rounds (sorted N1, N2, ...) each with its actions (sorted by role)
+  const rounds = useMemo(() => {
+    if (!game) return [];
+
+    const entries = Object.values(game.roundsById);
+
+    const sortedRounds = entries.sort((a, b) => {
+      const aNum = Number(String(a.id).replace(/^N/, '')) || 0;
+      const bNum = Number(String(b.id).replace(/^N/, '')) || 0;
+      return aNum - bNum;
+    });
+
+    return sortedRounds.map((r) => {
+      const list = Object.values(r.actionsByRole ?? {}).filter(Boolean) as any[];
+      list.sort((a, b) => String(a.type).localeCompare(String(b.type)));
+      return { id: r.id, actions: list };
+    });
+  }, [game]);
+
+  const totalActions = useMemo(() => {
+    return rounds.reduce((sum, r) => sum + r.actions.length, 0);
+  }, [rounds]);
+
   return (
+    // ✅ ParallaxScrollView already scrolls vertically; we just render ALL rounds now
     <ParallaxScrollView headerBackgroundColor={{ light: '#400000', dark: '#1a0000' }}>
       <View style={styles.wrap}>
         <ThemedText type="title">Game</ThemedText>
 
         <View style={styles.btnRow}>
-          <Pressable
-            disabled={!canStart}
-            onPress={() => startNewGame(players)}
+          <View
             style={[styles.btn, !canStart && styles.btnDisabled]}
+            // Pressable-less: keep your styling; if you want press behavior here, re-wrap with Pressable
           >
-            <ThemedText type="defaultSemiBold">Start New Game</ThemedText>
+            <ThemedText type="defaultSemiBold" onPress={() => canStart && startNewGame(players)}>
+              Start New Game
+            </ThemedText>
             <ThemedText style={{ opacity: 0.85, fontSize: 12 }}>
               Uses current Players list ({players.length})
             </ThemedText>
-          </Pressable>
+          </View>
 
-          <Pressable
-            disabled={!game}
-            onPress={() => clearGame()}
-            style={[styles.btn, styles.btnDanger, !game && styles.btnDisabled]}
-          >
-            <ThemedText type="defaultSemiBold">Clear Game</ThemedText>
-            <ThemedText style={{ opacity: 0.85, fontSize: 12 }}>
-              Removes rounds + actions
+          <View style={[styles.btn, styles.btnDanger, !game && styles.btnDisabled]}>
+            <ThemedText type="defaultSemiBold" onPress={() => game && clearGame()}>
+              Clear Game
             </ThemedText>
-          </Pressable>
+            <ThemedText style={{ opacity: 0.85, fontSize: 12 }}>Removes rounds + actions</ThemedText>
+          </View>
         </View>
 
         {!game ? (
@@ -67,19 +76,36 @@ export default function HomeScreen() {
         ) : (
           <>
             <ThemedText type="subtitle" style={{ opacity: 0.9 }}>
-              Round {roundId} • Total actions: {actions.length}
+              Current round: {game.currentRoundId} • Total actions: {totalActions}
             </ThemedText>
 
             <View style={styles.list}>
-              {actions.length === 0 ? (
+              {rounds.length === 0 ? (
                 <View style={styles.card}>
-                  <ThemedText style={{ opacity: 0.85 }}>No actions recorded yet.</ThemedText>
+                  <ThemedText style={{ opacity: 0.85 }}>No rounds yet.</ThemedText>
                 </View>
               ) : (
-                actions.map((a) => (
-                  <View key={String(a.type)} style={styles.card}>
-                    <ThemedText type="defaultSemiBold">{String(a.type)}</ThemedText>
-                    <ThemedText style={{ opacity: 0.9 }}>{a.text}</ThemedText>
+                rounds.map((r) => (
+                  <View key={r.id} style={styles.roundBlock}>
+                    <View style={styles.roundHeader}>
+                      <ThemedText type="defaultSemiBold">Round {r.id}</ThemedText>
+                      <ThemedText style={{ opacity: 0.8, fontSize: 12 }}>
+                        {r.actions.length} action{r.actions.length === 1 ? '' : 's'}
+                      </ThemedText>
+                    </View>
+
+                    {r.actions.length === 0 ? (
+                      <View style={styles.card}>
+                        <ThemedText style={{ opacity: 0.85 }}>No actions recorded.</ThemedText>
+                      </View>
+                    ) : (
+                      r.actions.map((a) => (
+                        <View key={`${r.id}-${String(a.type)}`} style={styles.card}>
+                          <ThemedText type="defaultSemiBold">{String(a.type)}</ThemedText>
+                          <ThemedText style={{ opacity: 0.9 }}>{a.text}</ThemedText>
+                        </View>
+                      ))
+                    )}
                   </View>
                 ))
               )}
@@ -110,7 +136,16 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.35 },
 
-  list: { gap: 10, marginTop: 6 },
+  list: { gap: 14, marginTop: 6 },
+
+  roundBlock: { gap: 10 },
+  roundHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+
   card: {
     borderRadius: 12,
     borderWidth: 1,
