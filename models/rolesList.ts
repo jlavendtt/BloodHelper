@@ -1,18 +1,7 @@
 // models/rolesList.ts
 import { ImageSourcePropType } from 'react-native';
+import type { Action } from './action'; // ✅ use the shared Action type
 import { Affiliation, RoleName } from './role';
-
-export interface Action {
-  actorPlayerId: string; // (for now you're passing name; swap to id later)
-  type: RoleName;
-  text: string;
-
-  recipient?: string[];   // player ids or names (your choice, just be consistent)
-  result?: boolean;       // success / yes-no reading etc.
-  roleToken?: RoleName;   // optional revealed/learned token
-  number?: number;        // optional number result (empath/chef/etc.)
-  wasDrunk: boolean;
-}
 
 export interface Role {
   affiliation: Affiliation;

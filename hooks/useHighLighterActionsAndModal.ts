@@ -27,10 +27,16 @@ const RAVEN_MODAL_ROLES: RoleName[] = ['Ravenkeeper'] as any;
 const FT_MODAL_ROLES: RoleName[] = ['FortuneTeller'] as any;
 const UNDERTAKER_MODAL_ROLES: RoleName[] = ['Undertaker'] as any;
 
+function uniq<T>(arr: T[]) {
+  return Array.from(new Set(arr));
+}
+
 export function useHighlighterActionsAndModals(args: {
   players: Player[];
   selectedRole: RoleName | null;
+  focusedPlayerId: string | undefined; // ✅ add this
   focusedPlayerName: string | undefined;
+
   excludedPlayerId?: string;
   highlightedPlayers: Player[];
   roleByName: Map<RoleName, (typeof rolesList)[number]>;
@@ -39,6 +45,7 @@ export function useHighlighterActionsAndModals(args: {
   const {
     players,
     selectedRole,
+    focusedPlayerId,
     focusedPlayerName,
     excludedPlayerId,
     highlightedPlayers,
@@ -57,7 +64,7 @@ export function useHighlighterActionsAndModals(args: {
   const [selectedNumber, setSelectedNumber] = useState<0 | 1 | 2 | null>(null);
   const [ftResultByRole, setFtResultByRole] = useState<Record<string, boolean | null>>({});
 
-  // per-role persisted modal state (Option 3: store whole players)
+  // per-role persisted modal state (store whole players)
   const [pairStateByRole, setPairStateByRole] = useState<Record<string, PairState>>({});
   const [ravenByRole, setRavenByRole] = useState<Record<string, RevealState>>({});
   const [undertakerByRole, setUndertakerByRole] = useState<Record<string, RevealState>>({});
@@ -121,31 +128,51 @@ export function useHighlighterActionsAndModals(args: {
     setFtResultByRole((prev) => ({ ...prev, [selectedRole]: v }));
   };
 
+  /**
+   * ✅ ID-FIRST action emission:
+   * - keep doAction() for text (recipient names)
+   * - then patch the returned Action to include:
+   *   - actorPlayerId = focusedPlayerId
+   *   - recipient = recipientIds
+   */
   const emitRoleAction = (opts?: {
-    recipients?: Player[];
-    result?: boolean;
-    isDrunk?: boolean;
-    roleToken?: RoleName;
-    number?: number;
-  }) => {
-    if (!selectedRole) return;
+  recipients?: Player[];
+  result?: boolean;
+  isDrunk?: boolean;
+  roleToken?: RoleName;
+  number?: number;
+}) => {
+  if (!selectedRole) return;
 
-    const roleObj = roleByName.get(selectedRole);
-    if (!roleObj?.doAction) return;
+  const roleObj = roleByName.get(selectedRole);
+  if (!roleObj?.doAction) return;
 
-    const recipientNames = (opts?.recipients ?? []).map((p) => p.name);
+  if (!focusedPlayerId) return;
 
-    const action = roleObj.doAction(
-      focusedPlayerName ?? 'No player',
-      recipientNames,
-      opts?.result,
-      opts?.isDrunk ?? false,
-      opts?.roleToken,
-      opts?.number
-    );
+  const recipients = (opts?.recipients ?? []).filter(Boolean);
+  const recipientIds = Array.from(new Set(recipients.map((p) => p.id)));
+  const recipientNames = recipients.map((p) => p.name);
 
-    onAction(action);
+  // build nice text using names
+  const base = roleObj.doAction(
+    focusedPlayerName ?? 'No player',
+    recipientNames,
+    opts?.result,
+    opts?.isDrunk ?? false,
+    opts?.roleToken,
+    opts?.number
+  );
+
+  // ✅ patch in ids (this is the important part)
+  const action: Action = {
+    ...base,
+    actorPlayerId: focusedPlayerId,
+    recipient: recipientIds.length ? recipientIds : undefined,
   };
+
+  onAction(action);
+};
+
 
   const onCenterPressHighlight = () => {
     if (!selectedRole) return;
@@ -237,7 +264,8 @@ export function useHighlighterActionsAndModals(args: {
           const next = id ? playerById.get(id) ?? null : null;
           updateRaven({ selectedPlayer: next });
         },
-        onChangeHighlightedRole: (role: RoleName | null) => updateRaven({ highlightedRole: role }),
+        onChangeHighlightedRole: (role: RoleName | null) =>
+          updateRaven({ highlightedRole: role }),
       },
 
       fortuneTeller: {

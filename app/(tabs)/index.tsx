@@ -1,6 +1,6 @@
 // app/(tabs)/index.tsx
 import React, { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
@@ -40,30 +40,39 @@ export default function HomeScreen() {
   }, [rounds]);
 
   return (
-    // ✅ ParallaxScrollView already scrolls vertically; we just render ALL rounds now
     <ParallaxScrollView headerBackgroundColor={{ light: '#400000', dark: '#1a0000' }}>
       <View style={styles.wrap}>
         <ThemedText type="title">Game</ThemedText>
 
         <View style={styles.btnRow}>
-          <View
-            style={[styles.btn, !canStart && styles.btnDisabled]}
-            // Pressable-less: keep your styling; if you want press behavior here, re-wrap with Pressable
+          <Pressable
+            style={({ pressed }) => [
+              styles.btn,
+              !canStart && styles.btnDisabled,
+              pressed && canStart && styles.btnPressed,
+            ]}
+            disabled={!canStart}
+            onPress={() => startNewGame(players)}
           >
-            <ThemedText type="defaultSemiBold" onPress={() => canStart && startNewGame(players)}>
-              Start New Game
-            </ThemedText>
+            <ThemedText type="defaultSemiBold">Start New Game</ThemedText>
             <ThemedText style={{ opacity: 0.85, fontSize: 12 }}>
               Uses current Players list ({players.length})
             </ThemedText>
-          </View>
+          </Pressable>
 
-          <View style={[styles.btn, styles.btnDanger, !game && styles.btnDisabled]}>
-            <ThemedText type="defaultSemiBold" onPress={() => game && clearGame()}>
-              Clear Game
-            </ThemedText>
+          <Pressable
+            style={({ pressed }) => [
+              styles.btn,
+              styles.btnDanger,
+              !game && styles.btnDisabled,
+              pressed && game && styles.btnPressed,
+            ]}
+            disabled={!game}
+            onPress={clearGame}
+          >
+            <ThemedText type="defaultSemiBold">Clear Game</ThemedText>
             <ThemedText style={{ opacity: 0.85, fontSize: 12 }}>Removes rounds + actions</ThemedText>
-          </View>
+          </Pressable>
         </View>
 
         {!game ? (
@@ -135,6 +144,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,0,0,0.35)',
   },
   btnDisabled: { opacity: 0.35 },
+  btnPressed: { opacity: 0.85 },
 
   list: { gap: 14, marginTop: 6 },
 
