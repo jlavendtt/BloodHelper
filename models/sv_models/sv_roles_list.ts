@@ -120,91 +120,93 @@ export const rolesList: Role[] = [
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Clockmaker,
     picture: require('@/assets/roles/sv_roles/clockmaker.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'This is the number of steps between the demon and its nearest minion',
     doAction: infoPairWithToken(svRoleName.Clockmaker),
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Dreamer,
     picture: require('@/assets/roles/sv_roles/dreamer.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'Choose a player',
     doAction: infoPairWithToken(svRoleName.Dreamer),
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Snake_Charmer,
     picture: require('@/assets/roles/sv_roles/snake_charmer.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'Choose a player',
     doAction: infoPairWithToken(svRoleName.Snake_Charmer),
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Mathematician,
     picture: require('@/assets/roles/sv_roles/mathematician.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'This is the number of characters whose abilities malfunctioned',
     doAction: infoPairWithToken(svRoleName.Mathematician),
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Flowergirl,
     picture: require('@/assets/roles/sv_roles/flowergirl.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'Choose a player',
     doAction: infoPairWithToken(svRoleName.Flowergirl),
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Town_Crier,
     picture: require('@/assets/roles/sv_roles/town_crier.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'Choose a player',
     doAction: infoPairWithToken(svRoleName.Town_Crier),
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Oracle,
     picture: require('@/assets/roles/sv_roles/oracle.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'This is the number of dead players who are evil',
     doAction: infoPairWithToken(svRoleName.Oracle),
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Savant,
     picture: require('@/assets/roles/sv_roles/savant.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'N/A',
     doAction: infoPairWithToken(svRoleName.Savant),
+    // Text questions to storyteller and receive responses?
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Seamstress,
     picture: require('@/assets/roles/sv_roles/seamstress.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'Choose up to 2 players',
     doAction: infoPairWithToken(svRoleName.Seamstress),
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Philosopher,
     picture: require('@/assets/roles/sv_roles/philosopher.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'Choose a good character',
     doAction: infoPairWithToken(svRoleName.Philosopher),
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Artist,
     picture: require('@/assets/roles/sv_roles/artist.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'N/A',
     doAction: infoPairWithToken(svRoleName.Artist),
+    // Text questions to storyteller and receive responses?
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Juggler,
     picture: require('@/assets/roles/sv_roles/juggler.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'This is the number of characters you got right',
     doAction: infoPairWithToken(svRoleName.Juggler),
   },
   {
     affiliation: Affiliation.Townsfolk,
     title: svRoleName.Sage,
     picture: require('@/assets/roles/sv_roles/sage.png'),
-    prompt: 'Here is who is townsfolk',
+    prompt: 'The demon is one of the following characters',
     doAction: infoPairWithToken(svRoleName.Sage),
   },
 
@@ -213,28 +215,28 @@ export const rolesList: Role[] = [
     affiliation: Affiliation.Outsider,
     title: svRoleName.Mutant,
     picture: require('@/assets/roles/sv_roles/mutant.png'),
-    prompt: 'Here are the outsiders',
+    prompt: 'N/A',
     doAction: infoPairWithToken(svRoleName.Mutant),
   },
   {
     affiliation: Affiliation.Outsider,
     title: svRoleName.Barber,
     picture: require('@/assets/roles/sv_roles/barber.png'),
-    prompt: 'Here are the outsiders',
+    prompt: '(if killed, demon may choose 2 players to swap roles)',
     doAction: infoPairWithToken(svRoleName.Barber),
   },
   {
     affiliation: Affiliation.Outsider,
     title: svRoleName.Sweetheart,
     picture: require('@/assets/roles/sv_roles/Sweetheart.png'),
-    prompt: 'Here are the outsiders',
+    prompt: '(if killed, 1 player becomes drunk)',
     doAction: infoPairWithToken(svRoleName.Sweetheart),
   },
   {
     affiliation: Affiliation.Outsider,
     title: svRoleName.Klutz,
     picture: require('@/assets/roles/sv_roles/klutz.png'),
-    prompt: 'Here are the outsiders',
+    prompt: 'N/A',
     doAction: infoPairWithToken(svRoleName.Klutz),
   },
 
@@ -243,14 +245,14 @@ export const rolesList: Role[] = [
     affiliation: Affiliation.Minion,
     title: svRoleName.Witch,
     picture: require('@/assets/roles/sv_roles/witch.png'),
-    prompt: 'Choose someone to poison',
+    prompt: 'Choose a player',
     doAction: singleTarget(svRoleName.Witch, 'poisoned'),
   },
   {
     affiliation: Affiliation.Minion,
     title: svRoleName.Cerenovus,
     picture: require('@/assets/roles/sv_roles/cerenovus.png'),
-    prompt: 'Heres your grimoire',
+    prompt: 'Choose a player and the character they will become',
     doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
       const text = `${playerName}: saw the grimoire`;
       return baseAction({
@@ -265,7 +267,7 @@ export const rolesList: Role[] = [
     affiliation: Affiliation.Minion,
     title: svRoleName.Pit_Hag,
     picture: require('@/assets/roles/sv_roles/pit_hag'),
-    prompt: '',
+    prompt: 'Choose a player and the character they will become',
     doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
       const text = `${playerName}: acted`;
       return baseAction({
@@ -280,7 +282,7 @@ export const rolesList: Role[] = [
     affiliation: Affiliation.Minion,
     title: svRoleName.Evil_Twin,
     picture: require('@/assets/roles/sv_roles/evil_twin.png'),
-    prompt: '',
+    prompt: 'N/A',
     doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
       const text = `${playerName}: acted`;
       return baseAction({
@@ -292,33 +294,33 @@ export const rolesList: Role[] = [
     },
   },
  
-  // 🔥 Demon
+  // Demon
   {
     affiliation: Affiliation.Demon,
     title: svRoleName.Fang_Gu,
     picture: require('@/assets/roles/sv_roles/fang_gu.png'),
-    prompt: 'Choose someone to kill',
+    prompt: 'Choose a player to kill',
     doAction: infoPairWithToken(svRoleName.Fang_Gu),
   },
   {
     affiliation: Affiliation.Demon,
     title: svRoleName.Vigormortus,
     picture: require('@/assets/roles/sv_roles/vigormortus.png'),
-    prompt: 'Choose someone to kill',
+    prompt: 'Choose a player to kill',
     doAction: infoPairWithToken(svRoleName.Vigormortus),
   },
   {
     affiliation: Affiliation.Demon,
     title: svRoleName.No_Dashii,
     picture: require('@/assets/roles/sv_roles/no_dashii.png'),
-    prompt: 'Choose someone to kill',
+    prompt: 'Choose a player to kill',
     doAction: infoPairWithToken(svRoleName.No_Dashii),
   },
   {
     affiliation: Affiliation.Demon,
     title: svRoleName.Vortox,
     picture: require('@/assets/roles/sv_roles/vortox.png'),
-    prompt: 'Choose someone to kill',
+    prompt: 'Choose a player to kill',
     doAction: infoPairWithToken(svRoleName.Vortox),
   },
 ];
