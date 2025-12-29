@@ -6,6 +6,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useHighlighterActionsAndModals } from '@/hooks/useHighLighterActionsAndModal';
 import { RoleName } from '@/models/role';
 import { rolesList } from '@/models/rolesList';
+import type { PlayerStatus } from '@/stores/gameStore';
 import { useGameStore } from '@/stores/gameStore';
 import { usePlayersStore } from '@/stores/playerStore';
 import { useRoleStore } from '@/stores/roleStore';
@@ -13,6 +14,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
+
+
+
 
 type Mode = 'first' | 'other';
 type Player = { id: string; name: string };
@@ -50,6 +54,8 @@ export default function HighlighterTab() {
     [rosterPlayers]
   );
 
+  
+
   const assigned = useRoleStore((s) => s.assigned) as Record<string, RoleName | undefined>;
   const nextNight = useGameStore((s) => s.nextNight);
   const [endRoundOpen, setEndRoundOpen] = useState(false);
@@ -63,6 +69,26 @@ export default function HighlighterTab() {
   // game stuff
   const game = useGameStore((s) => s.game);
   const startNewGame = useGameStore((s) => s.startNewGame);
+
+  // ✅ NEW: read player state for death overlay + skull pills
+  const playerStateById = useGameStore(
+  (s) => (s.game?.playerStateById ?? ({} as Record<string, PlayerStatus>))
+);
+  const isDeadById = useMemo(() => {
+    return (id?: string) => {
+      if (!id) return false;
+      const st = (playerStateById as any)?.[id];
+      if (!st) return false;
+      return st.alive === false;
+    };
+  }, [playerStateById]);
+
+  const deadPlayerIds = useMemo(() => {
+  return Object.entries(playerStateById)
+    .filter(([, st]) => st.alive === false)
+    .map(([id]) => id);
+}, [playerStateById]);
+
 
   useEffect(() => {
     if (!game && players.length > 0) {
@@ -180,7 +206,7 @@ export default function HighlighterTab() {
   };
 
   // ---------------------------
-  // ✅ Toast (no dependency)
+  // ✅ Toast
   // ---------------------------
   const [toastText, setToastText] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -218,11 +244,10 @@ export default function HighlighterTab() {
   }, []);
   // ---------------------------
 
-  // ✅ all modal + action logic extracted
   const { onCenterPressHighlight, modals } = useHighlighterActionsAndModals({
     players,
     selectedRole,
-    focusedPlayerId: focusPlayerId, // ✅ NEW
+    focusedPlayerId: focusPlayerId,
     excludedPlayerId: focusPlayerId,
     highlightedPlayers,
     roleByName,
@@ -242,6 +267,8 @@ export default function HighlighterTab() {
       {row.map((r) => {
         const isSelected = r.title === selectedRole;
         const hasPlayer = Boolean(playerIdForRole.get(r.title));
+        const rolePlayerId = playerIdForRole.get(r.title);
+        const rolePlayerDead = isDeadById(rolePlayerId); // ✅ NEW
 
         return (
           <Pressable
@@ -254,7 +281,17 @@ export default function HighlighterTab() {
               !hasPlayer && styles.roleChipDisabled,
             ]}
           >
-            <Image source={r.picture} style={styles.roleIcon} contentFit="contain" />
+            <View style={styles.roleIconWrap}>
+              <Image source={r.picture} style={styles.roleIcon} contentFit="contain" />
+
+              {/* ✅ NEW: red X overlay if that role’s player is dead */}
+              {rolePlayerDead ? (
+                <View pointerEvents="none" style={styles.deadXWrap}>
+                  <View style={[styles.deadXLine, { transform: [{ rotate: '45deg' }] }]} />
+                  <View style={[styles.deadXLine, { transform: [{ rotate: '-45deg' }] }]} />
+                </View>
+              ) : null}
+            </View>
           </Pressable>
         );
       })}
@@ -266,6 +303,8 @@ export default function HighlighterTab() {
       {row.map((r) => {
         const isSelected = r.title === selectedRole;
         const hasPlayer = Boolean(playerIdForRole.get(r.title));
+        const rolePlayerId = playerIdForRole.get(r.title);
+        const rolePlayerDead = isDeadById(rolePlayerId); // ✅ NEW
 
         return (
           <Pressable
@@ -278,7 +317,17 @@ export default function HighlighterTab() {
               !hasPlayer && styles.roleChipDisabled,
             ]}
           >
-            <Image source={r.picture} style={styles.roleIcon} contentFit="contain" />
+            <View style={styles.roleIconWrap}>
+              <Image source={r.picture} style={styles.roleIcon} contentFit="contain" />
+
+              {/* ✅ NEW: red X overlay */}
+              {rolePlayerDead ? (
+                <View pointerEvents="none" style={styles.deadXWrap}>
+                  <View style={[styles.deadXLine, { transform: [{ rotate: '45deg' }] }]} />
+                  <View style={[styles.deadXLine, { transform: [{ rotate: '-45deg' }] }]} />
+                </View>
+              ) : null}
+            </View>
           </Pressable>
         );
       })}
@@ -354,6 +403,7 @@ export default function HighlighterTab() {
           initialHighlightedIds={currentHighlights}
           onHighlightsChange={onHighlightsChangeForCurrentRole}
           onCenterPressHighlight={onCenterPressHighlight}
+          deadPlayerIds={deadPlayerIds} // ✅ NEW prop
         />
       </View>
 
@@ -389,7 +439,6 @@ export default function HighlighterTab() {
         </Pressable>
       </View>
 
-      {/* ✅ all modals are rendered here */}
       <HighlighterModals
         number={modals.number as any}
         pair={modals.pair as any}
@@ -398,7 +447,6 @@ export default function HighlighterTab() {
         undertaker={modals.undertaker as any}
       />
 
-      {/* ✅ Toast overlay */}
       {toastText ? (
         <Animated.View pointerEvents="none" style={[styles.toastWrap, { opacity: toastOpacity }]}>
           <View style={styles.toastPill}>
@@ -461,7 +509,28 @@ const styles = StyleSheet.create({
   },
   roleChipOn: { backgroundColor: 'rgba(158,0,0,0.25)', borderColor: 'rgba(255,0,0,0.5)' },
   roleChipDisabled: { opacity: 0.25 },
+
+  // ✅ NEW: wrap icon so we can overlay an X
+  roleIconWrap: { width: 38, height: 38 },
   roleIcon: { width: 38, height: 38 },
+
+  // ✅ NEW: red X overlay (two lines)
+  deadXWrap: {
+    position: 'absolute',
+    left: -4,
+    top: -4,
+    right: -4,
+    bottom: -4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deadXLine: {
+    position: 'absolute',
+    width: 44,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,0,0,0.85)',
+  },
 
   lockedNav: { flexDirection: 'row', gap: 12 },
   arrowBtn: {

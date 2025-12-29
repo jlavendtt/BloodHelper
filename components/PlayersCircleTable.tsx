@@ -41,6 +41,9 @@ type Props = {
   style?: ViewStyle;
   showRing?: boolean;
   onOrderChange?: (nextPlayers: Player[]) => void;
+
+  // ✅ NEW: death overlay / skull display
+  deadPlayerIds?: string[];
 };
 
 export default function PlayersCircleTable({
@@ -56,16 +59,19 @@ export default function PlayersCircleTable({
   style,
   showRing = true,
   onOrderChange,
-  onCenterPressHighlight, // ✅ add this
+  onCenterPressHighlight,
+  deadPlayerIds = [],
 }: Props) {
-
   const [container, setContainer] = useState({ width: 0, height: 0 });
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const deadSet = useMemo(() => new Set(deadPlayerIds), [deadPlayerIds]);
+  const isDead = (id: string) => deadSet.has(id);
+
   const [order, setOrder] = useState<Player[]>(players);
   useEffect(() => {
-    const curIds = order.map(p => p.id).join('|');
-    const nextIds = players.map(p => p.id).join('|');
+    const curIds = order.map((p) => p.id).join('|');
+    const nextIds = players.map((p) => p.id).join('|');
     if (curIds !== nextIds) setOrder(players);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players]);
@@ -75,23 +81,28 @@ export default function PlayersCircleTable({
   const [lastTapId, setLastTapId] = useState<string | null>(null);
   const DOUBLE_TAP_MS = 300;
 
-  const assigned = useRoleStore(s => s.assigned);
-  const resetAssignments = useRoleStore(s => s.resetAssignments);
-  const assignRole = useRoleStore(s => s.assignRole);
-  const unassignRole = useRoleStore(s => s.unassignRole);
+  const assigned = useRoleStore((s) => s.assigned);
+  const resetAssignments = useRoleStore((s) => s.resetAssignments);
+  const assignRole = useRoleStore((s) => s.assignRole);
+  const unassignRole = useRoleStore((s) => s.unassignRole);
 
   const rolePicMap = useMemo(() => {
     const m = new Map<RoleName, any>();
-    rolesList.forEach(r => m.set(r.title, r.picture));
+    rolesList.forEach((r) => m.set(r.title, r.picture));
     return m;
   }, []);
 
   const [highlighted, setHighlighted] = useState<Set<string>>(
-    () => new Set(initialHighlightedIds),
+    () => new Set(initialHighlightedIds)
   );
 
+  useEffect(() => {
+    // keep highlighted set synced when initialHighlightedIds changes (ex: role changed)
+    setHighlighted(new Set(initialHighlightedIds));
+  }, [initialHighlightedIds]);
+
   const emitHighlights = (set: Set<string>) => {
-    onHighlightsChange?.(order.map(p => p.id).filter(id => set.has(id)));
+    onHighlightsChange?.(order.map((p) => p.id).filter((id) => set.has(id)));
   };
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -107,7 +118,7 @@ export default function PlayersCircleTable({
 
   const rotateBy = useMemo(() => {
     if (!focusPlayerId || !n) return 0;
-    const focusIndex = order.findIndex(p => p.id === focusPlayerId);
+    const focusIndex = order.findIndex((p) => p.id === focusPlayerId);
     if (focusIndex < 0) return 0;
     return (bottomSlotIndex - focusIndex + n) % n;
   }, [focusPlayerId, order, n, bottomSlotIndex]);
@@ -213,11 +224,11 @@ export default function PlayersCircleTable({
         const isHighlighted = mode === 'highlight' && highlighted.has(p.id);
         const isFocus = p.id === focusPlayerId;
 
-        const borderColor = isSwapSelected || isHighlighted
-          ? 'rgba(255,0,0,0.9)'
-          : 'rgba(255,255,255,0.15)';
+        const borderColor =
+          isSwapSelected || isHighlighted ? 'rgba(255,0,0,0.9)' : 'rgba(255,255,255,0.15)';
 
-        const displayName = isFocus ? 'You' : p.name;
+        const baseDisplayName = isFocus ? 'You' : p.name;
+        const displayName = isDead(p.id) ? `${baseDisplayName} 💀` : baseDisplayName;
 
         return (
           <Pressable
@@ -245,25 +256,35 @@ export default function PlayersCircleTable({
             </Text>
 
             {hasIcon && (
-              <Image source={rolePic} style={styles.icon} contentFit="cover" />
+              <View style={styles.iconWrap}>
+                <Image source={rolePic} style={styles.icon} contentFit="cover" />
+
+                {/* ✅ NEW: if dead, show a red X over the role icon */}
+                {isDead(p.id) ? (
+                  <View pointerEvents="none" style={styles.deadXWrap}>
+                    <View style={[styles.deadXLine, { transform: [{ rotate: '45deg' }] }]} />
+                    <View style={[styles.deadXLine, { transform: [{ rotate: '-45deg' }] }]} />
+                  </View>
+                ) : null}
+              </View>
             )}
           </Pressable>
         );
       })}
 
       <Pressable
-  onPress={() => {
-    if (mode === 'highlight') {
-      onCenterPressHighlight?.();
-      return;
-    }
-    setShowConfirm(true);
-  }}
-  style={[
-    styles.centerBtn,
-    { left: centerX - CENTER_BTN / 2, top: centerY - CENTER_BTN / 2 },
-  ]}
->
+        onPress={() => {
+          if (mode === 'highlight') {
+            onCenterPressHighlight?.();
+            return;
+          }
+          setShowConfirm(true);
+        }}
+        style={[
+          styles.centerBtn,
+          { left: centerX - CENTER_BTN / 2, top: centerY - CENTER_BTN / 2 },
+        ]}
+      >
         <Image source={require('@/assets/meta/undo.png')} style={styles.centerImg} />
       </Pressable>
 
@@ -271,9 +292,7 @@ export default function PlayersCircleTable({
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Reset all roles?</Text>
-            <Text style={styles.modalBody}>
-              This will unassign every player's role.
-            </Text>
+            <Text style={styles.modalBody}>This will unassign every player's role.</Text>
 
             <View style={styles.modalActions}>
               <Pressable style={styles.mBtn} onPress={() => setShowConfirm(false)}>
@@ -302,7 +321,12 @@ const CENTER_BTN = 56;
 
 const styles = StyleSheet.create({
   container: { width: '100%', height: 600, top: -100, position: 'relative' },
-  ring: { position: 'absolute', borderRadius: 9999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  ring: {
+    position: 'absolute',
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
   item: {
     position: 'absolute',
     width: ITEM_W,
@@ -316,7 +340,28 @@ const styles = StyleSheet.create({
   name: { color: '#fff', fontSize: 14, flex: 1, textAlignVertical: 'center' },
   nameCentered: { textAlign: 'center' },
   nameFocus: { color: 'rgba(0,255,0,0.95)', fontWeight: '700' },
+
+  iconWrap: { width: 24, height: 24, borderRadius: 6 },
   icon: { width: 24, height: 24, borderRadius: 6 },
+
+  // ✅ red X overlay (same vibe as HighlighterTab)
+  deadXWrap: {
+    position: 'absolute',
+    left: -4,
+    top: -4,
+    right: -4,
+    bottom: -4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deadXLine: {
+    position: 'absolute',
+    width: 30,
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,0,0,0.85)',
+  },
+
   centerBtn: {
     position: 'absolute',
     width: CENTER_BTN,
@@ -327,7 +372,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   centerImg: { width: 28, height: 28 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   modalCard: { width: '90%', borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.85)', padding: 16 },
   modalTitle: { color: '#fff', fontSize: 18, fontWeight: '600' },
   modalBody: { color: 'rgba(255,255,255,0.85)', marginVertical: 12 },
