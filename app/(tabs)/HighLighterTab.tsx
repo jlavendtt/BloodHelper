@@ -4,14 +4,18 @@ import PlayersCircleTable from '@/components/PlayersCircleTable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useHighlighterActionsAndModals } from '@/hooks/useHighLighterActionsAndModal';
-import type { Action } from '@/models/action';
 import { RoleName } from '@/models/role';
 import { rolesList } from '@/models/rolesList';
+import { useGameStore } from '@/stores/gameStore';
 import { usePlayersStore } from '@/stores/playerStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+
+
+
+
 
 type Mode = 'first' | 'other';
 type Player = { id: string; name: string };
@@ -50,7 +54,22 @@ export default function HighlighterTab() {
   const [selectedRole, setSelectedRole] = useState<RoleName | null>(null);
   const [locked, setLocked] = useState(false);
 
-  const [actions, setActions] = useState<Action[]>([]);
+
+  const upsertAction = useGameStore((s) => s.upsertAction);
+
+// ...
+
+//game stuff
+const game = useGameStore((s) => s.game);
+const startNewGame = useGameStore((s) => s.startNewGame);
+
+useEffect(() => {
+  // If we have players but no game yet, start one
+  if (!game && players.length > 0) {
+    startNewGame(players);
+  }
+}, [game, players, startNewGame]);
+
 
   // ✅ per-role highlights memory (ids)
   const [highlightsByRole, setHighlightsByRole] = useState<Record<string, string[]>>({});
@@ -163,7 +182,7 @@ export default function HighlighterTab() {
     roleByName,
     onAction: (a) => {
       console.log(a);
-      setActions((prev) => [a, ...prev]);
+      upsertAction(a);
     },
   });
 
