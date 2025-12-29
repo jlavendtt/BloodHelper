@@ -1,6 +1,6 @@
 // models/rolesList.ts
 import { ImageSourcePropType } from 'react-native';
-import type { Action } from './action'; // ✅ use the shared Action type
+import type { Action } from './action';
 import { Affiliation, RoleName } from './role';
 
 export interface Role {
@@ -9,45 +9,48 @@ export interface Role {
   picture: ImageSourcePropType;
   prompt: string;
 
-  // Added roleToken + number so roles can embed them into text when needed
-  doAction: (
-    playerName: string,
-    recipients?: string[],
-    result?: boolean,
-    isDrunk?: boolean,
-    roleToken?: RoleName,
-    number?: number
-  ) => Action;
-}
+  // ✅ ID-first: roles receive ids + a getName() resolver for display text
+  doAction: (args: {
+    actorId: string;
+    recipientIds?: string[];
+    getName: (id: string) => string;
 
-function joinNames(names: string[] | undefined) {
-  if (!names || names.length === 0) return '';
-  if (names.length === 1) return names[0];
-  if (names.length === 2) return `${names[0]} and ${names[1]}`;
-  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+    result?: boolean;
+    isDrunk?: boolean;
+    roleToken?: RoleName;
+    number?: number;
+  }) => Action;
 }
 
 function drunkSuffix(isDrunk?: boolean) {
   return isDrunk ? ' (Drunk)' : '';
 }
 
+function joinNamesFromIds(ids: string[] | undefined, getName: (id: string) => string) {
+  const names = (ids ?? []).map(getName).filter(Boolean);
+  if (names.length === 0) return '';
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+}
+
 function baseAction(args: {
   role: RoleName;
-  playerName: string;
-  recipients?: string[];
+  actorId: string;
+  recipientIds?: string[];
   result?: boolean;
   isDrunk?: boolean;
   roleToken?: RoleName;
   number?: number;
   text: string;
 }): Action {
-  const { role, playerName, recipients, result, isDrunk = false, roleToken, number, text } = args;
+  const { role, actorId, recipientIds, result, isDrunk = false, roleToken, number, text } = args;
 
   return {
-    actorPlayerId: playerName, // swap to real id later
+    actorPlayerId: actorId, // ✅ always id now
     type: role,
     text: `${text}${drunkSuffix(isDrunk)}`,
-    recipient: recipients?.length ? recipients : undefined,
+    recipient: recipientIds?.length ? recipientIds : undefined,
     result,
     roleToken,
     number,
@@ -55,28 +58,30 @@ function baseAction(args: {
   };
 }
 
-// --- Helper makers (so Washerwoman/Librarian/Investigator can share) ---
+// --- Helper makers (Washerwoman/Librarian/Investigator share) ---
 function infoPairWithToken(role: RoleName) {
-  return (
-    playerName: string,
-    recipients: string[] = [],
-    _result?: boolean,
-    isDrunk = false,
-    roleToken?: RoleName
-  ): Action => {
-    const p1 = recipients[0];
-    const p2 = recipients[1];
-    const pair = joinNames([p1, p2].filter(Boolean) as string[]);
-    const tokenText = roleToken ?? ('' as any);
+  return (args: {
+    actorId: string;
+    recipientIds?: string[];
+    getName: (id: string) => string;
+    isDrunk?: boolean;
+    roleToken?: RoleName;
+  }): Action => {
+    const { actorId, recipientIds = [], getName, isDrunk = false, roleToken } = args;
 
-    const text = `${playerName}: was shown that ${pair || 'two players'} and found one of them was ${String(
-      tokenText || 'UNKNOWN'
-    )}`;
+    const p1 = recipientIds[0];
+    const p2 = recipientIds[1];
+    const pair = joinNamesFromIds([p1, p2].filter(Boolean) as string[], getName);
+
+    const actorName = getName(actorId);
+    const tokenText = roleToken ? String(roleToken) : 'UNKNOWN';
+
+    const text = `${actorName}: was shown that ${pair || 'two players'} and found one of them was ${tokenText}`;
 
     return baseAction({
       role,
-      playerName,
-      recipients,
+      actorId,
+      recipientIds,
       isDrunk,
       roleToken,
       text,
@@ -85,15 +90,21 @@ function infoPairWithToken(role: RoleName) {
 }
 
 function singleTarget(role: RoleName, verb: string) {
-  return (
-    playerName: string,
-    recipients: string[] = [],
-    _result?: boolean,
-    isDrunk = false
-  ): Action => {
-    const target = recipients[0] ?? 'someone';
-    const text = `${playerName}: ${verb} ${target}`;
-    return baseAction({ role, playerName, recipients, isDrunk, text });
+  return (args: {
+    actorId: string;
+    recipientIds?: string[];
+    getName: (id: string) => string;
+    isDrunk?: boolean;
+  }): Action => {
+    const { actorId, recipientIds = [], getName, isDrunk = false } = args;
+
+    const actorName = getName(actorId);
+    const targetId = recipientIds[0];
+    const targetName = targetId ? getName(targetId) : 'someone';
+
+    const text = `${actorName}: ${verb} ${targetName}`;
+
+    return baseAction({ role, actorId, recipientIds, isDrunk, text });
   };
 }
 
@@ -125,8 +136,9 @@ export const rolesList: Role[] = [
     title: RoleName.Chef,
     picture: require('@/assets/roles/chef.png'),
     prompt: 'here are the pairs',
-    doAction: (playerName, _recipients = [], result, isDrunk = false, _roleToken, number): Action => {
-      // result: true => there are pairs, false => no pairs (or use number if you prefer)
+    doAction: ({ actorId, getName, result, isDrunk = false, number }): Action => {
+      const actorName = getName(actorId);
+
       const pairsText =
         typeof number === 'number'
           ? `${number} pair${number === 1 ? '' : 's'}`
@@ -136,10 +148,11 @@ export const rolesList: Role[] = [
               : 'no pairs'
             : 'UNKNOWN';
 
-      const text = `${playerName}: was alerted that there are ${pairsText}`;
+      const text = `${actorName}: was alerted that there are ${pairsText}`;
+
       return baseAction({
         role: RoleName.Chef,
-        playerName,
+        actorId,
         result,
         isDrunk,
         number,
@@ -152,12 +165,14 @@ export const rolesList: Role[] = [
     title: RoleName.Empath,
     picture: require('@/assets/roles/empath.png'),
     prompt: 'heres number of sus people',
-    doAction: (playerName, _recipients = [], _result, isDrunk = false, _roleToken, number): Action => {
+    doAction: ({ actorId, getName, isDrunk = false, number }): Action => {
+      const actorName = getName(actorId);
       const nText = typeof number === 'number' ? String(number) : 'UNKNOWN';
-      const text = `${playerName}: was alerted that there are ${nText} bad players next to them`;
+      const text = `${actorName}: was alerted that there are ${nText} bad players next to them`;
+
       return baseAction({
         role: RoleName.Empath,
-        playerName,
+        actorId,
         isDrunk,
         number,
         text,
@@ -169,17 +184,20 @@ export const rolesList: Role[] = [
     title: RoleName.FortuneTeller,
     picture: require('@/assets/roles/fortune_teller.png'),
     prompt: 'Choose 2 players to fortune tell',
-    doAction: (playerName, recipients = [], result, isDrunk = false): Action => {
-      const p1 = recipients[0];
-      const p2 = recipients[1];
-      const pair = joinNames([p1, p2].filter(Boolean) as string[]);
-      const resText =
-        typeof result === 'boolean' ? (result ? 'YES' : 'NO') : 'UNKNOWN';
-      const text = `${playerName}: chose ${pair || 'two players'} and got ${resText}`;
+    doAction: ({ actorId, recipientIds = [], getName, result, isDrunk = false }): Action => {
+      const actorName = getName(actorId);
+
+      const p1 = recipientIds[0];
+      const p2 = recipientIds[1];
+      const pair = joinNamesFromIds([p1, p2].filter(Boolean) as string[], getName);
+
+      const resText = typeof result === 'boolean' ? (result ? 'YES' : 'NO') : 'UNKNOWN';
+      const text = `${actorName}: chose ${pair || 'two players'} and got ${resText}`;
+
       return baseAction({
         role: RoleName.FortuneTeller,
-        playerName,
-        recipients,
+        actorId,
+        recipientIds,
         result,
         isDrunk,
         text,
@@ -191,14 +209,19 @@ export const rolesList: Role[] = [
     title: RoleName.Undertaker,
     picture: require('@/assets/roles/undertaker.png'),
     prompt: 'Heres the token of the player that was executed today',
-    doAction: (playerName, recipients = [], _result, isDrunk = false, roleToken): Action => {
-      const executed = recipients[0] ?? 'the executed player';
+    doAction: ({ actorId, recipientIds = [], getName, isDrunk = false, roleToken }): Action => {
+      const actorName = getName(actorId);
+
+      const executedId = recipientIds[0];
+      const executedName = executedId ? getName(executedId) : 'the executed player';
+
       const tokenText = roleToken ? String(roleToken) : 'UNKNOWN';
-      const text = `${playerName}: was shown that ${executed} was ${tokenText}`;
+      const text = `${actorName}: was shown that ${executedName} was ${tokenText}`;
+
       return baseAction({
         role: RoleName.Undertaker,
-        playerName,
-        recipients,
+        actorId,
+        recipientIds,
         isDrunk,
         roleToken,
         text,
@@ -217,14 +240,19 @@ export const rolesList: Role[] = [
     title: RoleName.Ravenkeeper,
     picture: require('@/assets/roles/ravenkeeper.png'),
     prompt: 'Choose a player to learn their identity',
-    doAction: (playerName, recipients = [], _result, isDrunk = false, roleToken): Action => {
-      const target = recipients[0] ?? 'someone';
+    doAction: ({ actorId, recipientIds = [], getName, isDrunk = false, roleToken }): Action => {
+      const actorName = getName(actorId);
+
+      const targetId = recipientIds[0];
+      const targetName = targetId ? getName(targetId) : 'someone';
+
       const tokenText = roleToken ? String(roleToken) : 'UNKNOWN';
-      const text = `${playerName}: learned that ${target}'s role was ${tokenText}`;
+      const text = `${actorName}: learned that ${targetName}'s role was ${tokenText}`;
+
       return baseAction({
         role: RoleName.Ravenkeeper,
-        playerName,
-        recipients,
+        actorId,
+        recipientIds,
         isDrunk,
         roleToken,
         text,
@@ -243,19 +271,25 @@ export const rolesList: Role[] = [
     title: RoleName.Slayer,
     picture: require('@/assets/roles/slayer.png'),
     prompt: '',
-    doAction: (playerName, recipients = [], result, isDrunk = false): Action => {
-      const target = recipients[0] ?? 'someone';
+    doAction: ({ actorId, recipientIds = [], getName, result, isDrunk = false }): Action => {
+      const actorName = getName(actorId);
+
+      const targetId = recipientIds[0];
+      const targetName = targetId ? getName(targetId) : 'someone';
+
       const successText =
         typeof result === 'boolean'
           ? result
-            ? `successfully killed ${target}`
-            : `failed to kill ${target}`
-          : `shot at ${target}`;
-      const text = `${playerName}: ${successText}`;
+            ? `successfully killed ${targetName}`
+            : `failed to kill ${targetName}`
+          : `shot at ${targetName}`;
+
+      const text = `${actorName}: ${successText}`;
+
       return baseAction({
         role: RoleName.Slayer,
-        playerName,
-        recipients,
+        actorId,
+        recipientIds,
         result,
         isDrunk,
         text,
@@ -267,13 +301,18 @@ export const rolesList: Role[] = [
     title: RoleName.Soldier,
     picture: require('@/assets/roles/soldier.png'),
     prompt: '',
-    doAction: (playerName, recipients = [], _result, isDrunk = false): Action => {
-      const attacker = recipients[0] ?? 'someone';
-      const text = `${playerName}: defended themself against ${attacker}`;
+    doAction: ({ actorId, recipientIds = [], getName, isDrunk = false }): Action => {
+      const actorName = getName(actorId);
+
+      const attackerId = recipientIds[0];
+      const attackerName = attackerId ? getName(attackerId) : 'someone';
+
+      const text = `${actorName}: defended themself against ${attackerName}`;
+
       return baseAction({
         role: RoleName.Soldier,
-        playerName,
-        recipients,
+        actorId,
+        recipientIds,
         isDrunk,
         text,
       });
@@ -284,14 +323,21 @@ export const rolesList: Role[] = [
     title: RoleName.Mayor,
     picture: require('@/assets/roles/mayor.png'),
     prompt: '',
-    doAction: (playerName, recipients = [], _result, isDrunk = false): Action => {
-      const attacker = recipients[0] ?? 'someone';
-      const diedInstead = recipients[1] ?? 'someone else';
-      const text = `${attacker} tried to kill ${playerName} (Mayor) and ${diedInstead} died in the process`;
+    doAction: ({ actorId, recipientIds = [], getName, isDrunk = false }): Action => {
+      const mayorName = getName(actorId);
+
+      const attackerId = recipientIds[0];
+      const diedInsteadId = recipientIds[1];
+
+      const attackerName = attackerId ? getName(attackerId) : 'someone';
+      const diedInsteadName = diedInsteadId ? getName(diedInsteadId) : 'someone else';
+
+      const text = `${attackerName} tried to kill ${mayorName} (Mayor) and ${diedInsteadName} died in the process`;
+
       return baseAction({
         role: RoleName.Mayor,
-        playerName,
-        recipients,
+        actorId,
+        recipientIds,
         isDrunk,
         text,
       });
@@ -311,13 +357,18 @@ export const rolesList: Role[] = [
     title: RoleName.Recluse,
     picture: require('@/assets/roles/recluse.png'),
     prompt: '',
-    doAction: (playerName, recipients = [], _result, isDrunk = false): Action => {
-      const target = recipients[0] ?? 'someone';
-      const text = `${playerName}: triggered ${target}`;
+    doAction: ({ actorId, recipientIds = [], getName, isDrunk = false }): Action => {
+      const actorName = getName(actorId);
+
+      const targetId = recipientIds[0];
+      const targetName = targetId ? getName(targetId) : 'someone';
+
+      const text = `${actorName}: triggered ${targetName}`;
+
       return baseAction({
         role: RoleName.Recluse,
-        playerName,
-        recipients,
+        actorId,
+        recipientIds,
         isDrunk,
         text,
       });
@@ -328,11 +379,13 @@ export const rolesList: Role[] = [
     title: RoleName.Saint,
     picture: require('@/assets/roles/saint.png'),
     prompt: '',
-    doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
-      const text = `${playerName}: ended the game`;
+    doAction: ({ actorId, getName, isDrunk = false }): Action => {
+      const actorName = getName(actorId);
+      const text = `${actorName}: ended the game`;
+
       return baseAction({
         role: RoleName.Saint,
-        playerName,
+        actorId,
         isDrunk,
         text,
       });
@@ -343,11 +396,13 @@ export const rolesList: Role[] = [
     title: RoleName.Drunk,
     picture: require('@/assets/roles/drunk.png'),
     prompt: '',
-    doAction: (playerName, _recipients = [], _result, isDrunk = true): Action => {
-      const text = `${playerName}: was drunk`;
+    doAction: ({ actorId, getName, isDrunk = true }): Action => {
+      const actorName = getName(actorId);
+      const text = `${actorName}: was drunk`;
+
       return baseAction({
         role: RoleName.Drunk,
-        playerName,
+        actorId,
         isDrunk, // likely always true here
         text,
       });
@@ -367,11 +422,13 @@ export const rolesList: Role[] = [
     title: RoleName.Spy,
     picture: require('@/assets/roles/spy.png'),
     prompt: 'Heres your grimoire',
-    doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
-      const text = `${playerName}: saw the grimoire`;
+    doAction: ({ actorId, getName, isDrunk = false }): Action => {
+      const actorName = getName(actorId);
+      const text = `${actorName}: saw the grimoire`;
+
       return baseAction({
         role: RoleName.Spy,
-        playerName,
+        actorId,
         isDrunk,
         text,
       });
@@ -382,11 +439,13 @@ export const rolesList: Role[] = [
     title: RoleName.ScarletWoman,
     picture: require('@/assets/roles/scarlet_woman.png'),
     prompt: '',
-    doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
-      const text = `${playerName}: acted`;
+    doAction: ({ actorId, getName, isDrunk = false }): Action => {
+      const actorName = getName(actorId);
+      const text = `${actorName}: acted`;
+
       return baseAction({
         role: RoleName.ScarletWoman,
-        playerName,
+        actorId,
         isDrunk,
         text,
       });
@@ -397,11 +456,13 @@ export const rolesList: Role[] = [
     title: RoleName.Baron,
     picture: require('@/assets/roles/baron.png'),
     prompt: '',
-    doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
-      const text = `${playerName}: acted`;
+    doAction: ({ actorId, getName, isDrunk = false }): Action => {
+      const actorName = getName(actorId);
+      const text = `${actorName}: acted`;
+
       return baseAction({
         role: RoleName.Baron,
-        playerName,
+        actorId,
         isDrunk,
         text,
       });
@@ -414,19 +475,25 @@ export const rolesList: Role[] = [
     title: RoleName.Imp,
     picture: require('@/assets/roles/imp.png'),
     prompt: 'Choose someone to kill',
-    doAction: (playerName, recipients = [], result, isDrunk = false): Action => {
-      const target = recipients[0] ?? 'someone';
+    doAction: ({ actorId, recipientIds = [], getName, result, isDrunk = false }): Action => {
+      const actorName = getName(actorId);
+
+      const targetId = recipientIds[0];
+      const targetName = targetId ? getName(targetId) : 'someone';
+
       const successText =
         typeof result === 'boolean'
           ? result
-            ? `killed ${target}`
-            : `failed to kill ${target}`
-          : `attempted to kill ${target}`;
-      const text = `${playerName}: ${successText}`;
+            ? `killed ${targetName}`
+            : `failed to kill ${targetName}`
+          : `attempted to kill ${targetName}`;
+
+      const text = `${actorName}: ${successText}`;
+
       return baseAction({
         role: RoleName.Imp,
-        playerName,
-        recipients,
+        actorId,
+        recipientIds,
         result,
         isDrunk,
         text,

@@ -27,15 +27,12 @@ const RAVEN_MODAL_ROLES: RoleName[] = ['Ravenkeeper'] as any;
 const FT_MODAL_ROLES: RoleName[] = ['FortuneTeller'] as any;
 const UNDERTAKER_MODAL_ROLES: RoleName[] = ['Undertaker'] as any;
 
-function uniq<T>(arr: T[]) {
-  return Array.from(new Set(arr));
-}
-
 export function useHighlighterActionsAndModals(args: {
   players: Player[];
   selectedRole: RoleName | null;
-  focusedPlayerId: string | undefined; // ✅ add this
-  focusedPlayerName: string | undefined;
+
+  // ✅ now required for ID-first actions
+  focusedPlayerId: string | undefined;
 
   excludedPlayerId?: string;
   highlightedPlayers: Player[];
@@ -46,7 +43,6 @@ export function useHighlighterActionsAndModals(args: {
     players,
     selectedRole,
     focusedPlayerId,
-    focusedPlayerName,
     excludedPlayerId,
     highlightedPlayers,
     roleByName,
@@ -75,6 +71,10 @@ export function useHighlighterActionsAndModals(args: {
     for (const p of players) m.set(p.id, p);
     return m;
   }, [players]);
+
+  const getName = useMemo(() => {
+    return (id: string) => playerById.get(id)?.name ?? 'Unknown';
+  }, [playerById]);
 
   const currentPairState: PairState = useMemo(() => {
     if (!selectedRole) return defaultPair;
@@ -128,51 +128,35 @@ export function useHighlighterActionsAndModals(args: {
     setFtResultByRole((prev) => ({ ...prev, [selectedRole]: v }));
   };
 
-  /**
-   * ✅ ID-FIRST action emission:
-   * - keep doAction() for text (recipient names)
-   * - then patch the returned Action to include:
-   *   - actorPlayerId = focusedPlayerId
-   *   - recipient = recipientIds
-   */
   const emitRoleAction = (opts?: {
-  recipients?: Player[];
-  result?: boolean;
-  isDrunk?: boolean;
-  roleToken?: RoleName;
-  number?: number;
-}) => {
-  if (!selectedRole) return;
+    recipients?: Player[];
+    result?: boolean;
+    isDrunk?: boolean;
+    roleToken?: RoleName;
+    number?: number;
+  }) => {
+    if (!selectedRole) return;
 
-  const roleObj = roleByName.get(selectedRole);
-  if (!roleObj?.doAction) return;
+    const roleObj = roleByName.get(selectedRole);
+    if (!roleObj?.doAction) return;
 
-  if (!focusedPlayerId) return;
+    if (!focusedPlayerId) return;
 
-  const recipients = (opts?.recipients ?? []).filter(Boolean);
-  const recipientIds = Array.from(new Set(recipients.map((p) => p.id)));
-  const recipientNames = recipients.map((p) => p.name);
+    const recipients = (opts?.recipients ?? []).filter(Boolean);
+    const recipientIds = Array.from(new Set(recipients.map((p) => p.id)));
 
-  // build nice text using names
-  const base = roleObj.doAction(
-    focusedPlayerName ?? 'No player',
-    recipientNames,
-    opts?.result,
-    opts?.isDrunk ?? false,
-    opts?.roleToken,
-    opts?.number
-  );
+    const action = roleObj.doAction({
+      actorId: focusedPlayerId,
+      recipientIds: recipientIds.length ? recipientIds : undefined,
+      getName,
+      result: opts?.result,
+      isDrunk: opts?.isDrunk ?? false,
+      roleToken: opts?.roleToken,
+      number: opts?.number,
+    });
 
-  // ✅ patch in ids (this is the important part)
-  const action: Action = {
-    ...base,
-    actorPlayerId: focusedPlayerId,
-    recipient: recipientIds.length ? recipientIds : undefined,
+    onAction(action);
   };
-
-  onAction(action);
-};
-
 
   const onCenterPressHighlight = () => {
     if (!selectedRole) return;

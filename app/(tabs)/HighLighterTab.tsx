@@ -3,7 +3,6 @@ import HighlighterModals from '@/components/highlighter/HighlighterModal';
 import PlayersCircleTable from '@/components/PlayersCircleTable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { applyActionEffects } from '@/helpers/applyActionEffect';
 import { useHighlighterActionsAndModals } from '@/hooks/useHighLighterActionsAndModal';
 import { RoleName } from '@/models/role';
 import { rolesList } from '@/models/rolesList';
@@ -16,7 +15,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 type Mode = 'first' | 'other';
-type Player = { id: string; name: string }; // ✅ game-safe player shape
+type Player = { id: string; name: string };
 
 const FIRST_NIGHT_ROLES: RoleName[] = [
   RoleName.Poisoner,
@@ -45,19 +44,13 @@ const OTHER_NIGHTS_ROLES: RoleName[] = [
 const LOCKED_NAV_HEIGHT = 150;
 
 export default function HighlighterTab() {
-  // ✅ roster players (has phone, history, etc)
   const rosterPlayers = usePlayersStore((s) => s.players);
-
-  // ✅ game players (ONLY id + name) — this is what you should pass around in game UI + gameStore
   const players: Player[] = useMemo(
     () => rosterPlayers.map((p) => ({ id: p.id, name: p.name })),
     [rosterPlayers]
   );
 
-  const assigned = useRoleStore(
-    (s) => s.assigned
-  ) as Record<string, RoleName | undefined>;
-
+  const assigned = useRoleStore((s) => s.assigned) as Record<string, RoleName | undefined>;
   const nextNight = useGameStore((s) => s.nextNight);
   const [endRoundOpen, setEndRoundOpen] = useState(false);
 
@@ -72,17 +65,13 @@ export default function HighlighterTab() {
   const startNewGame = useGameStore((s) => s.startNewGame);
 
   useEffect(() => {
-    // ✅ If we have players but no game yet, start one
-    // ✅ We now pass ONLY {id,name} into game store (no phones)
     if (!game && players.length > 0) {
       startNewGame(players);
     }
   }, [game, players, startNewGame]);
 
   // ✅ per-role highlights memory (ids)
-  const [highlightsByRole, setHighlightsByRole] = useState<Record<string, string[]>>(
-    {}
-  );
+  const [highlightsByRole, setHighlightsByRole] = useState<Record<string, string[]>>({});
 
   const roleOrder = useMemo(
     () => (mode === 'first' ? FIRST_NIGHT_ROLES : OTHER_NIGHTS_ROLES),
@@ -128,10 +117,7 @@ export default function HighlighterTab() {
       .filter((title) => Boolean(playerIdForRole.get(title)));
   }, [rolesInThisMode, playerIdForRole]);
 
-  const firstNavigableRole = useMemo(
-    () => navigableRoles[0] ?? null,
-    [navigableRoles]
-  );
+  const firstNavigableRole = useMemo(() => navigableRoles[0] ?? null, [navigableRoles]);
 
   useEffect(() => {
     setSelectedRole(firstNavigableRole);
@@ -178,9 +164,7 @@ export default function HighlighterTab() {
   }, [players, focusPlayerId]);
 
   const playerName = focusedPlayer?.name ?? 'No player';
-  const promptText = selectedRoleObj?.prompt?.trim()
-    ? selectedRoleObj.prompt.trim()
-    : 'No prompt.';
+  const promptText = selectedRoleObj?.prompt?.trim() ? selectedRoleObj.prompt.trim() : 'No prompt.';
 
   const currentHighlights = selectedRole ? (highlightsByRole[selectedRole] ?? []) : [];
 
@@ -235,23 +219,19 @@ export default function HighlighterTab() {
   // ---------------------------
 
   // ✅ all modal + action logic extracted
-  // NOTE: this is where we’ll next refactor actions to emit recipient: [playerId]
- const { onCenterPressHighlight, modals } = useHighlighterActionsAndModals({
-  players,
-  selectedRole,
-  focusedPlayerId: focusPlayerId,         // ✅ add this
-  focusedPlayerName: focusedPlayer?.name,
-  excludedPlayerId: focusPlayerId,
-  highlightedPlayers,
-  roleByName,
-  onAction: (a) => {
-    // we'll do effects here next
-    applyActionEffects(a); // ✅ uses ids now
-    upsertAction(a);
-    showToast('✅ ' + a.text);
-  },
-});
-
+  const { onCenterPressHighlight, modals } = useHighlighterActionsAndModals({
+    players,
+    selectedRole,
+    focusedPlayerId: focusPlayerId, // ✅ NEW
+    excludedPlayerId: focusPlayerId,
+    highlightedPlayers,
+    roleByName,
+    onAction: (a) => {
+      console.log(a);
+      upsertAction(a);
+      showToast('✅ ' + a.text);
+    },
+  });
 
   const mid = Math.ceil(rolesInThisMode.length / 2);
   const row1 = rolesInThisMode.slice(0, mid);
@@ -304,11 +284,7 @@ export default function HighlighterTab() {
       })}
 
       <Pressable onPress={openEndRound} style={[styles.roleChip, styles.endRoundChip]}>
-        <MaterialCommunityIcons
-          name="weather-sunny"
-          size={28}
-          color="rgba(255,255,255,0.95)"
-        />
+        <MaterialCommunityIcons name="weather-sunny" size={28} color="rgba(255,255,255,0.95)" />
       </Pressable>
     </View>
   );
@@ -370,7 +346,7 @@ export default function HighlighterTab() {
       {/* Middle */}
       <View style={styles.middle}>
         <PlayersCircleTable
-          players={players} // ✅ now id+name only
+          players={players}
           mode="highlight"
           radius={150}
           focusPlayerId={focusPlayerId}
