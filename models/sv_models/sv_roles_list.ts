@@ -1,57 +1,63 @@
 // models/rolesList.ts
 import { ImageSourcePropType } from 'react-native';
-import { Affiliation, RoleName } from './role';
+import { Affiliation, svRoleName } from './sv_role';
 
-export interface Action {
+export interface Action
+{
   actorPlayerId: string; // (for now you're passing name; swap to id later)
-  type: RoleName;
+  type: svRoleName;
   text: string;
 
   recipient?: string[];   // player ids or names (your choice, just be consistent)
   result?: boolean;       // success / yes-no reading etc.
-  roleToken?: RoleName;   // optional revealed/learned token
-  number?: number;        // optional number result (empath/chef/etc.)
+  roleToken?: svRoleName;   // optional revealed/learned token
+  number?: number;        // optional number result (Mathematician/chef/etc.)
   wasDrunk: boolean;
 }
 
-export interface Role {
+export interface Role
+{
   affiliation: Affiliation;
-  title: RoleName;
+  title: svRoleName;
   picture: ImageSourcePropType;
   prompt: string;
 
   // Added roleToken + number so roles can embed them into text when needed
-  doAction: (
+  doAction: 
+  (
     playerName: string,
     recipients?: string[],
     result?: boolean,
     isDrunk?: boolean,
-    roleToken?: RoleName,
+    roleToken?: svRoleName,
     number?: number
   ) => Action;
 }
 
-function joinNames(names: string[] | undefined) {
+function joinNames(names: string[] | undefined)
+{
   if (!names || names.length === 0) return '';
   if (names.length === 1) return names[0];
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
   return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
 }
 
-function drunkSuffix(isDrunk?: boolean) {
+function drunkSuffix(isDrunk?: boolean)
+{
   return isDrunk ? ' (Drunk)' : '';
 }
 
-function baseAction(args: {
-  role: RoleName;
+function baseAction(args:{
+  role: svRoleName;
   playerName: string;
   recipients?: string[];
   result?: boolean;
   isDrunk?: boolean;
-  roleToken?: RoleName;
+  roleToken?: svRoleName;
   number?: number;
   text: string;
-}): Action {
+}): Action 
+{
   const { role, playerName, recipients, result, isDrunk = false, roleToken, number, text } = args;
 
   return {
@@ -66,14 +72,14 @@ function baseAction(args: {
   };
 }
 
-// --- Helper makers (so Washerwoman/Librarian/Investigator can share) ---
-function infoPairWithToken(role: RoleName) {
+// --- Helper makers (so Washerwoman/Librarian/Snake_Charmer can share) ---
+function infoPairWithToken(role: svRoleName) {
   return (
     playerName: string,
     recipients: string[] = [],
     _result?: boolean,
     isDrunk = false,
-    roleToken?: RoleName
+    roleToken?: svRoleName
   ): Action => {
     const p1 = recipients[0];
     const p2 = recipients[1];
@@ -95,7 +101,7 @@ function infoPairWithToken(role: RoleName) {
   };
 }
 
-function singleTarget(role: RoleName, verb: string) {
+function singleTarget(role: svRoleName, verb: string) {
   return (
     playerName: string,
     recipients: string[] = [],
@@ -109,279 +115,146 @@ function singleTarget(role: RoleName, verb: string) {
 }
 
 export const rolesList: Role[] = [
-  // 🧑‍🌾 Townsfolk
+  // Townsfolk
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Washerwoman,
-    picture: require('@/assets/roles/washerwoman.png'),
+    title: svRoleName.Clockmaker,
+    picture: require('@/assets/roles/sv_roles/clockmaker.png'),
     prompt: 'Here is who is townsfolk',
-    doAction: infoPairWithToken(RoleName.Washerwoman),
+    doAction: infoPairWithToken(svRoleName.Clockmaker),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Librarian,
-    picture: require('@/assets/roles/librarian.png'),
-    prompt: 'Heres the outsiders',
-    doAction: infoPairWithToken(RoleName.Librarian),
+    title: svRoleName.Dreamer,
+    picture: require('@/assets/roles/sv_roles/dreamer.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Dreamer),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Investigator,
-    picture: require('@/assets/roles/investigator.png'),
-    prompt: 'Heres is a particular minion',
-    doAction: infoPairWithToken(RoleName.Investigator),
+    title: svRoleName.Snake_Charmer,
+    picture: require('@/assets/roles/sv_roles/snake_charmer.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Snake_Charmer),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Chef,
-    picture: require('@/assets/roles/chef.png'),
-    prompt: 'here are the pairs',
-    doAction: (playerName, _recipients = [], result, isDrunk = false, _roleToken, number): Action => {
-      // result: true => there are pairs, false => no pairs (or use number if you prefer)
-      const pairsText =
-        typeof number === 'number'
-          ? `${number} pair${number === 1 ? '' : 's'}`
-          : typeof result === 'boolean'
-            ? result
-              ? 'pairs'
-              : 'no pairs'
-            : 'UNKNOWN';
-
-      const text = `${playerName}: was alerted that there are ${pairsText}`;
-      return baseAction({
-        role: RoleName.Chef,
-        playerName,
-        result,
-        isDrunk,
-        number,
-        text,
-      });
-    },
+    title: svRoleName.Mathematician,
+    picture: require('@/assets/roles/sv_roles/mathematician.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Mathematician),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Empath,
-    picture: require('@/assets/roles/empath.png'),
-    prompt: 'heres number of sus people',
-    doAction: (playerName, _recipients = [], _result, isDrunk = false, _roleToken, number): Action => {
-      const nText = typeof number === 'number' ? String(number) : 'UNKNOWN';
-      const text = `${playerName}: was alerted that there are ${nText} bad players next to them`;
-      return baseAction({
-        role: RoleName.Empath,
-        playerName,
-        isDrunk,
-        number,
-        text,
-      });
-    },
+    title: svRoleName.Flowergirl,
+    picture: require('@/assets/roles/sv_roles/flowergirl.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Flowergirl),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.FortuneTeller,
-    picture: require('@/assets/roles/fortune_teller.png'),
-    prompt: 'Choose 2 players to fortune tell',
-    doAction: (playerName, recipients = [], result, isDrunk = false): Action => {
-      const p1 = recipients[0];
-      const p2 = recipients[1];
-      const pair = joinNames([p1, p2].filter(Boolean) as string[]);
-      const resText =
-        typeof result === 'boolean' ? (result ? 'YES' : 'NO') : 'UNKNOWN';
-      const text = `${playerName}: chose ${pair || 'two players'} and got ${resText}`;
-      return baseAction({
-        role: RoleName.FortuneTeller,
-        playerName,
-        recipients,
-        result,
-        isDrunk,
-        text,
-      });
-    },
+    title: svRoleName.Town_Crier,
+    picture: require('@/assets/roles/sv_roles/town_crier.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Town_Crier),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Undertaker,
-    picture: require('@/assets/roles/undertaker.png'),
-    prompt: 'Heres the token of the player that was executed today',
-    doAction: (playerName, recipients = [], _result, isDrunk = false, roleToken): Action => {
-      const executed = recipients[0] ?? 'the executed player';
-      const tokenText = roleToken ? String(roleToken) : 'UNKNOWN';
-      const text = `${playerName}: was shown that ${executed} was ${tokenText}`;
-      return baseAction({
-        role: RoleName.Undertaker,
-        playerName,
-        recipients,
-        isDrunk,
-        roleToken,
-        text,
-      });
-    },
+    title: svRoleName.Oracle,
+    picture: require('@/assets/roles/sv_roles/oracle.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Oracle),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Monk,
-    picture: require('@/assets/roles/monk.png'),
-    prompt: 'Choose someone to save',
-    doAction: singleTarget(RoleName.Monk, 'protected'),
+    title: svRoleName.Savant,
+    picture: require('@/assets/roles/sv_roles/savant.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Savant),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Ravenkeeper,
-    picture: require('@/assets/roles/ravenkeeper.png'),
-    prompt: 'Choose a player to learn their identity',
-    doAction: (playerName, recipients = [], _result, isDrunk = false, roleToken): Action => {
-      const target = recipients[0] ?? 'someone';
-      const tokenText = roleToken ? String(roleToken) : 'UNKNOWN';
-      const text = `${playerName}: learned that ${target}'s role was ${tokenText}`;
-      return baseAction({
-        role: RoleName.Ravenkeeper,
-        playerName,
-        recipients,
-        isDrunk,
-        roleToken,
-        text,
-      });
-    },
+    title: svRoleName.Seamstress,
+    picture: require('@/assets/roles/sv_roles/seamstress.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Seamstress),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Virgin,
-    picture: require('@/assets/roles/virgin.png'),
-    prompt: '',
-    doAction: singleTarget(RoleName.Virgin, 'killed'),
+    title: svRoleName.Philosopher,
+    picture: require('@/assets/roles/sv_roles/philosopher.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Philosopher),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Slayer,
-    picture: require('@/assets/roles/slayer.png'),
-    prompt: '',
-    doAction: (playerName, recipients = [], result, isDrunk = false): Action => {
-      const target = recipients[0] ?? 'someone';
-      const successText =
-        typeof result === 'boolean'
-          ? result
-            ? `successfully killed ${target}`
-            : `failed to kill ${target}`
-          : `shot at ${target}`;
-      const text = `${playerName}: ${successText}`;
-      return baseAction({
-        role: RoleName.Slayer,
-        playerName,
-        recipients,
-        result,
-        isDrunk,
-        text,
-      });
-    },
+    title: svRoleName.Artist,
+    picture: require('@/assets/roles/sv_roles/artist.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Artist),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Soldier,
-    picture: require('@/assets/roles/soldier.png'),
-    prompt: '',
-    doAction: (playerName, recipients = [], _result, isDrunk = false): Action => {
-      const attacker = recipients[0] ?? 'someone';
-      const text = `${playerName}: defended themself against ${attacker}`;
-      return baseAction({
-        role: RoleName.Soldier,
-        playerName,
-        recipients,
-        isDrunk,
-        text,
-      });
-    },
+    title: svRoleName.Juggler,
+    picture: require('@/assets/roles/sv_roles/juggler.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Juggler),
   },
   {
     affiliation: Affiliation.Townsfolk,
-    title: RoleName.Mayor,
-    picture: require('@/assets/roles/mayor.png'),
-    prompt: '',
-    doAction: (playerName, recipients = [], _result, isDrunk = false): Action => {
-      const attacker = recipients[0] ?? 'someone';
-      const diedInstead = recipients[1] ?? 'someone else';
-      const text = `${attacker} tried to kill ${playerName} (Mayor) and ${diedInstead} died in the process`;
-      return baseAction({
-        role: RoleName.Mayor,
-        playerName,
-        recipients,
-        isDrunk,
-        text,
-      });
-    },
+    title: svRoleName.Sage,
+    picture: require('@/assets/roles/sv_roles/sage.png'),
+    prompt: 'Here is who is townsfolk',
+    doAction: infoPairWithToken(svRoleName.Sage),
   },
 
-  // 🌿 Outsiders
+  // Outsiders
   {
     affiliation: Affiliation.Outsider,
-    title: RoleName.Butler,
-    picture: require('@/assets/roles/butler.png'),
-    prompt: 'Choose someone to serve',
-    doAction: singleTarget(RoleName.Butler, 'chose to serve'),
+    title: svRoleName.Mutant,
+    picture: require('@/assets/roles/sv_roles/mutant.png'),
+    prompt: 'Here are the outsiders',
+    doAction: infoPairWithToken(svRoleName.Mutant),
   },
   {
     affiliation: Affiliation.Outsider,
-    title: RoleName.Recluse,
-    picture: require('@/assets/roles/recluse.png'),
-    prompt: '',
-    doAction: (playerName, recipients = [], _result, isDrunk = false): Action => {
-      const target = recipients[0] ?? 'someone';
-      const text = `${playerName}: triggered ${target}`;
-      return baseAction({
-        role: RoleName.Recluse,
-        playerName,
-        recipients,
-        isDrunk,
-        text,
-      });
-    },
+    title: svRoleName.Barber,
+    picture: require('@/assets/roles/sv_roles/barber.png'),
+    prompt: 'Here are the outsiders',
+    doAction: infoPairWithToken(svRoleName.Barber),
   },
   {
     affiliation: Affiliation.Outsider,
-    title: RoleName.Saint,
-    picture: require('@/assets/roles/saint.png'),
-    prompt: '',
-    doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
-      const text = `${playerName}: ended the game`;
-      return baseAction({
-        role: RoleName.Saint,
-        playerName,
-        isDrunk,
-        text,
-      });
-    },
+    title: svRoleName.Sweetheart,
+    picture: require('@/assets/roles/sv_roles/Sweetheart.png'),
+    prompt: 'Here are the outsiders',
+    doAction: infoPairWithToken(svRoleName.Sweetheart),
   },
   {
     affiliation: Affiliation.Outsider,
-    title: RoleName.Drunk,
-    picture: require('@/assets/roles/drunk.png'),
-    prompt: '',
-    doAction: (playerName, _recipients = [], _result, isDrunk = true): Action => {
-      const text = `${playerName}: was drunk`;
-      return baseAction({
-        role: RoleName.Drunk,
-        playerName,
-        isDrunk, // likely always true here
-        text,
-      });
-    },
+    title: svRoleName.Klutz,
+    picture: require('@/assets/roles/sv_roles/klutz.png'),
+    prompt: 'Here are the outsiders',
+    doAction: infoPairWithToken(svRoleName.Klutz),
   },
 
   // 🕷️ Minions
   {
     affiliation: Affiliation.Minion,
-    title: RoleName.Poisoner,
-    picture: require('@/assets/roles/poisoner.png'),
+    title: svRoleName.Witch,
+    picture: require('@/assets/roles/sv_roles/witch.png'),
     prompt: 'Choose someone to poison',
-    doAction: singleTarget(RoleName.Poisoner, 'poisoned'),
+    doAction: singleTarget(svRoleName.Witch, 'poisoned'),
   },
   {
     affiliation: Affiliation.Minion,
-    title: RoleName.Spy,
-    picture: require('@/assets/roles/spy.png'),
+    title: svRoleName.Cerenovus,
+    picture: require('@/assets/roles/sv_roles/cerenovus.png'),
     prompt: 'Heres your grimoire',
     doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
       const text = `${playerName}: saw the grimoire`;
       return baseAction({
-        role: RoleName.Spy,
+        role: svRoleName.Cerenovus,
         playerName,
         isDrunk,
         text,
@@ -390,13 +263,13 @@ export const rolesList: Role[] = [
   },
   {
     affiliation: Affiliation.Minion,
-    title: RoleName.ScarletWoman,
-    picture: require('@/assets/roles/scarlet_woman.png'),
+    title: svRoleName.Pit_Hag,
+    picture: require('@/assets/roles/sv_roles/pit_hag'),
     prompt: '',
     doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
       const text = `${playerName}: acted`;
       return baseAction({
-        role: RoleName.ScarletWoman,
+        role: svRoleName.Pit_Hag,
         playerName,
         isDrunk,
         text,
@@ -405,43 +278,47 @@ export const rolesList: Role[] = [
   },
   {
     affiliation: Affiliation.Minion,
-    title: RoleName.Baron,
-    picture: require('@/assets/roles/baron.png'),
+    title: svRoleName.Evil_Twin,
+    picture: require('@/assets/roles/sv_roles/evil_twin.png'),
     prompt: '',
     doAction: (playerName, _recipients = [], _result, isDrunk = false): Action => {
       const text = `${playerName}: acted`;
       return baseAction({
-        role: RoleName.Baron,
+        role: svRoleName.Evil_Twin,
         playerName,
         isDrunk,
         text,
       });
     },
   },
-
+ 
   // 🔥 Demon
   {
     affiliation: Affiliation.Demon,
-    title: RoleName.Imp,
-    picture: require('@/assets/roles/imp.png'),
+    title: svRoleName.Fang_Gu,
+    picture: require('@/assets/roles/sv_roles/fang_gu.png'),
     prompt: 'Choose someone to kill',
-    doAction: (playerName, recipients = [], result, isDrunk = false): Action => {
-      const target = recipients[0] ?? 'someone';
-      const successText =
-        typeof result === 'boolean'
-          ? result
-            ? `killed ${target}`
-            : `failed to kill ${target}`
-          : `attempted to kill ${target}`;
-      const text = `${playerName}: ${successText}`;
-      return baseAction({
-        role: RoleName.Imp,
-        playerName,
-        recipients,
-        result,
-        isDrunk,
-        text,
-      });
-    },
+    doAction: infoPairWithToken(svRoleName.Fang_Gu),
+  },
+  {
+    affiliation: Affiliation.Demon,
+    title: svRoleName.Vigormortus,
+    picture: require('@/assets/roles/sv_roles/vigormortus.png'),
+    prompt: 'Choose someone to kill',
+    doAction: infoPairWithToken(svRoleName.Vigormortus),
+  },
+  {
+    affiliation: Affiliation.Demon,
+    title: svRoleName.No_Dashii,
+    picture: require('@/assets/roles/sv_roles/no_dashii.png'),
+    prompt: 'Choose someone to kill',
+    doAction: infoPairWithToken(svRoleName.No_Dashii),
+  },
+  {
+    affiliation: Affiliation.Demon,
+    title: svRoleName.Vortox,
+    picture: require('@/assets/roles/sv_roles/vortox.png'),
+    prompt: 'Choose someone to kill',
+    doAction: infoPairWithToken(svRoleName.Vortox),
   },
 ];
