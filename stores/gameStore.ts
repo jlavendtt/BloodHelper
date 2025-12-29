@@ -12,7 +12,17 @@ export type RoundId = string; // "N1", "N2", ... (for now)
 
 export type Round = {
   id: RoundId;
-  actionsByRole: Partial<Record<RoleName, Action>>; // ✅ overwrite per role
+  actionsByRole: Partial<Record<RoleName, Action>>; // overwrite per role
+};
+
+export type PlayerStatus = {
+  alive: boolean; // dead = false
+  poisoned?: boolean;
+  drunk?: boolean;
+
+  // easy future adds:
+  // protected?: boolean;
+  // deadNight?: RoundId;
 };
 
 export type Game = {
@@ -21,6 +31,9 @@ export type Game = {
 
   currentRoundId: RoundId;
   roundsById: Record<RoundId, Round>;
+
+  // ✅ per-game, per-player current state
+  playerStateById: Record<Player['id'], PlayerStatus>;
 };
 
 interface GameState {
@@ -37,6 +50,16 @@ interface GameState {
 
   // actions (overwrite by role)
   upsertAction: (action: Action) => void;
+
+  // ✅ player status
+  setPlayerStatus: (playerId: string, patch: Partial<PlayerStatus>) => void;
+  killPlayer: (playerId: string) => void;
+  revivePlayer: (playerId: string) => void;
+  setPoisoned: (playerId: string, poisoned: boolean) => void;
+  setDrunk: (playerId: string, drunk: boolean) => void;
+
+  // optional helper: clear "temporary" flags (poison/drunk) for a new night/day
+  resetTemporaryStatuses: () => void;
 
   // helpers
   clearGame: () => void;
@@ -65,6 +88,11 @@ function ensureRound(game: Game, roundId: RoundId): Game {
   };
 }
 
+function buildInitialPlayerState(players: Player[]): Record<string, PlayerStatus> {
+  // everyone alive at game start
+  return Object.fromEntries(players.map((p) => [p.id, { alive: true }]));
+}
+
 export const useGameStore = create<GameState>()(
   persist(
     (set, get) => ({
@@ -72,6 +100,7 @@ export const useGameStore = create<GameState>()(
 
       startNewGame: (players) => {
         const firstRoundId = makeNightId(1);
+
         const game: Game = {
           players,
           whoWon: null,
@@ -79,12 +108,16 @@ export const useGameStore = create<GameState>()(
           roundsById: {
             [firstRoundId]: { id: firstRoundId, actionsByRole: {} },
           },
+          playerStateById: buildInitialPlayerState(players),
         };
+
         set({ game });
       },
 
       setWhoWon: (whoWon) =>
-        set((state) => (state.game ? { game: { ...state.game, whoWon } } : state)),
+        set((state) =>
+          state.game ? { game: { ...state.game, whoWon } } : state
+        ),
 
       setRound: (roundId) =>
         set((state) => {
@@ -148,10 +181,63 @@ export const useGameStore = create<GameState>()(
                   ...curRound,
                   actionsByRole: {
                     ...curRound.actionsByRole,
-                    [action.type]: action, // ✅ overwrite previous action for this role
+                    [action.type]: action, // overwrite previous action for this role
                   },
                 },
               },
+            },
+          };
+        }),
+
+      // -------------------------
+      // ✅ player status helpers
+      // -------------------------
+      setPlayerStatus: (playerId, patch) =>
+        set((state) => {
+          if (!state.game) return state;
+
+          const cur = state.game.playerStateById[playerId] ?? { alive: true };
+
+          return {
+            game: {
+              ...state.game,
+              playerStateById: {
+                ...state.game.playerStateById,
+                [playerId]: { ...cur, ...patch },
+              },
+            },
+          };
+        }),
+
+      killPlayer: (playerId) => {
+        get().setPlayerStatus(playerId, { alive: false });
+      },
+
+      revivePlayer: (playerId) => {
+        get().setPlayerStatus(playerId, { alive: true });
+      },
+
+      setPoisoned: (playerId, poisoned) => {
+        get().setPlayerStatus(playerId, { poisoned });
+      },
+
+      setDrunk: (playerId, drunk) => {
+        get().setPlayerStatus(playerId, { drunk });
+      },
+
+      resetTemporaryStatuses: () =>
+        set((state) => {
+          if (!state.game) return state;
+
+          const next = { ...state.game.playerStateById };
+          for (const id of Object.keys(next)) {
+            next[id] = { ...next[id], poisoned: false, drunk: false };
+          }
+
+          return {
+            game: {
+              ...state.game,
+              playerStateById: next,
             },
           };
         }),
@@ -161,7 +247,6 @@ export const useGameStore = create<GameState>()(
     {
       name: 'botc-game-store',
       storage: createJSONStorage(() => AsyncStorage),
-      // keep only what you need persisted
       partialize: (state) => ({ game: state.game }),
     }
   )
