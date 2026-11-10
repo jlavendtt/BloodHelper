@@ -24,7 +24,6 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "permissions": ["READ_CONTACTS"],
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
